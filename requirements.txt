@@ -9,3 +9,4 @@ numpy
 Pillow
 nonechucks
 scikit_learn
+pytorch-lightning
