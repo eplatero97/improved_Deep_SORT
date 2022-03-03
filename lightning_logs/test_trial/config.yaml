@@ -1,0 +1,8 @@
+root_dir: ./lightning_logs/test_trial # from root repo
+training_dir:
+testing_dir: 
+train_batch_size: 128
+use_dropout: 1
+act: relu
+deterministic: 1
+

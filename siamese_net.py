@@ -13,7 +13,6 @@ import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
 from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.callbacks import ModelCheckpoint
 from scipy.stats import multivariate_normal
 
 def get_gaussian_mask():
@@ -80,48 +79,53 @@ gaussian_mask = get_gaussian_mask().cuda()
 
 
 class SiameseNetwork(LightningModule):
-    def __init__(self):
+    def __init__(self, use_dropout: bool = False):
+        """Deep SORT encoder (siamese network)
+
+        Args:
+            use_dropout: whether to use dropout during training 
+        """
         super(SiameseNetwork, self).__init__()
 
         #Outputs batch X 512 X 1 X 1 
-        self.net = nn.Sequential(
-            nn.Conv2d(3,32,kernel_size=3,stride=2),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(32),
-            #nn.Dropout2d(p=0.4),
+        ops = nn.ModuleList()
+        ops.append(nn.Conv2d(3,32,kernel_size=3,stride=2))
+        ops.append(nn.ReLU(inplace=True))
+        ops.append(nn.BatchNorm2d(32))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(nn.Conv2d(32,64,kernel_size=3,stride=2))
+        ops.append(nn.ReLU(inplace=True))
+        ops.append(nn.BatchNorm2d(64))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(nn.Conv2d(64,128,kernel_size=3,stride=2))
+        ops.append(nn.ReLU(inplace=True))
+        ops.append(nn.BatchNorm2d(128))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(nn.Conv2d(128,256,kernel_size=1,stride=2))
+        ops.append(nn.ReLU(inplace=True))
+        ops.append(nn.BatchNorm2d(256))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(nn.Conv2d(256,256,kernel_size=1,stride=2))
+        ops.append(nn.ReLU(inplace=True))
+        ops.append(nn.BatchNorm2d(256))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(nn.Conv2d(256,512,kernel_size=3,stride=2))
+        ops.append(nn.ReLU(inplace=True))
+        ops.append(nn.BatchNorm2d(512))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        
+        ops.append(nn.Conv2d(512,1024,kernel_size=1,stride=1))
+        ops.append(nn.ReLU(inplace=True))
+        ops.append(nn.BatchNorm2d(1024))
+        ops.append()
 
-            nn.Conv2d(32,64,kernel_size=3,stride=2),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
-            #nn.Dropout2d(p=0.4),
-
-            nn.Conv2d(64,128,kernel_size=3,stride=2),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(128),
-            #nn.Dropout2d(p=0.4),            
-
-
-            nn.Conv2d(128,256,kernel_size=1,stride=2),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(256),
-            #nn.Dropout2d(p=0.4),
-
-            nn.Conv2d(256,256,kernel_size=1,stride=2),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(256),
-            #nn.Dropout2d(p=0.4),    
-
-            nn.Conv2d(256,512,kernel_size=3,stride=2),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(512),    
-
-            #1X1 filters to increase dimensions
-            nn.Conv2d(512,1024,kernel_size=1,stride=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(1024),    
-
-            )
-
+        self.net = nn.Sequential(*ops)
 
     def forward_once(self, x):
         output = self.net(x)
