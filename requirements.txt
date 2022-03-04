@@ -1,7 +1,7 @@
-opencv_python
+opencv-python
 matplotlib
 scipy
-tensorflow_gpu==2.5.3
+# tensorflow_gpu==2.5.3
 torchvision
 torch
 imgaug
@@ -9,4 +9,5 @@ numpy
 Pillow
 nonechucks
 scikit_learn
-pytorch-lightning[extra]
+pytorch-lightning
+jsonargparse

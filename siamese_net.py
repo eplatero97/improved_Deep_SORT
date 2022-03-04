@@ -79,7 +79,7 @@ gaussian_mask = get_gaussian_mask().cuda()
 
 
 class SiameseNetwork(LightningModule):
-    def __init__(self, use_dropout: bool = False):
+    def __init__(self, use_dropout: bool = False, act = nn.ReLU):
         """Deep SORT encoder (siamese network)
 
         Args:
@@ -90,40 +90,39 @@ class SiameseNetwork(LightningModule):
         #Outputs batch X 512 X 1 X 1 
         ops = nn.ModuleList()
         ops.append(nn.Conv2d(3,32,kernel_size=3,stride=2))
-        ops.append(nn.ReLU(inplace=True))
+        ops.append(act())
         ops.append(nn.BatchNorm2d(32))
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
         ops.append(nn.Conv2d(32,64,kernel_size=3,stride=2))
-        ops.append(nn.ReLU(inplace=True))
+        ops.append(act())
         ops.append(nn.BatchNorm2d(64))
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
         ops.append(nn.Conv2d(64,128,kernel_size=3,stride=2))
-        ops.append(nn.ReLU(inplace=True))
+        ops.append(act())
         ops.append(nn.BatchNorm2d(128))
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
         ops.append(nn.Conv2d(128,256,kernel_size=1,stride=2))
-        ops.append(nn.ReLU(inplace=True))
+        ops.append(act())
         ops.append(nn.BatchNorm2d(256))
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
         ops.append(nn.Conv2d(256,256,kernel_size=1,stride=2))
-        ops.append(nn.ReLU(inplace=True))
+        ops.append(act())
         ops.append(nn.BatchNorm2d(256))
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
         ops.append(nn.Conv2d(256,512,kernel_size=3,stride=2))
-        ops.append(nn.ReLU(inplace=True))
+        ops.append(act())
         ops.append(nn.BatchNorm2d(512))
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
         
         ops.append(nn.Conv2d(512,1024,kernel_size=1,stride=1))
-        ops.append(nn.ReLU(inplace=True))
+        ops.append(act())
         ops.append(nn.BatchNorm2d(1024))
-        ops.append()
 
         self.net = nn.Sequential(*ops)
 
@@ -157,11 +156,11 @@ class SiameseNetwork(LightningModule):
         anchor_out, positive_out, negative_out = self(anchor, positive, negative) # Model forward propagation
 
         triplet_loss = criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
-        self.log("triplet_loss", triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
+        self.log("performance", {"triplet_loss": triplet_loss.item()}, logger = True, on_step = True, on_epoch = False)
         return triplet_loss
 
 
-    def configure_optimizer(self):
+    def configure_optimizers(self):
         optim.Adam(self.parameters(), lr = 0.0005)
 
 
