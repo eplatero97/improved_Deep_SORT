@@ -165,12 +165,81 @@ class ImgAugTransform: # Image augmentation related transformations
 		return self.aug.augment_image(img)
 
 
+class SiameseQuadruplet(Dataset):
+	def __init__(self, imageFolderDataset, transform=None, should_invert=True):
+		self.imageFolderDataset = imageFolderDataset
+		self.transform = transform
+		self.should_invert = should_invert
+
+	def __getitem__(self, index):
+		# Get a random image which will be used as an anchor
+		img0_tuple = random.choice(self.imageFolderDataset.imgs)
+		# img0_tuple = (img_path, class_id)
+
+		while True:
+			# keep looping till a different class image is found. Negative image.
+			img1_tuple = random.choice(self.imageFolderDataset.imgs)
+			if img0_tuple[1] != img1_tuple[1]:
+				# If class id is different than anchor image, this will be used as a negative image
+				# Exit the loop if a negative image is found
+				break
+		while True:
+			img2_tuple = random.choice(self.imageFolderDataset.imgs)
+			if img0_tuple[1] != img2_tuple[1] and img1_tuple[1] != img2_tuple[1]:
+				break
+
+		# Getting anchor image and class name
+		anchor_image_name = img0_tuple[0].split('/')[-1]
+		anchor_class_name = img0_tuple[0].split('/')[-2]
+
+		# Getting all the images which belong to the same class as anchor image.
+		all_files_in_class = glob.glob(self.imageFolderDataset.root + anchor_class_name + '/*')
+		# Only those images which belong to the same class as anchor image but isn't anchor image will
+		# be selected as a candidate for positive sample
+		all_files_in_class = [x for x in all_files_in_class if x != img0_tuple[0]]
+
+		if len(all_files_in_class) == 0:
+			# If there is no image (other than anchor image) belonging to the anchor image class, anchor
+			# image will be taken as positive sample
+			positive_image = img0_tuple[0]
+		else:
+			# Choose random image (of same class as anchor image) as positive sample
+			positive_image = random.choice(all_files_in_class)
+
+		if anchor_class_name != positive_image.split('/')[-2]:
+			print("Error")  # Checking if the class of both anchor and positive image is same
+
+		anchor = Image.open(img0_tuple[0])
+		negative = Image.open(img1_tuple[0])
+		negative2 = Image.open(img2_tuple[0])
+		positive = Image.open(positive_image)
+
+		anchor = anchor.convert("RGB")
+		negative = negative.convert("RGB")
+		positive = positive.convert("RGB")
+		negative2 = negative2.convert("RGB")
+		if self.should_invert:
+			anchor = PIL.ImageOps.invert(anchor)
+			positive = PIL.ImageOps.invert(positive)
+			negative = PIL.ImageOps.invert(negative)
+			negative2 = PIL.ImageOps.invert(negative2)
+		if self.transform is not None:
+			anchor = self.transform(anchor)
+			positive = self.transform(positive)
+			negative = self.transform(negative)
+			negative2 = self.transform(negative2)
+		return anchor, positive, negative, negative2
+
+	def __len__(self):
+		return len(self.imageFolderDataset.imgs)
+
+
 if __name__ == '__main__':
 	# if this file is executed, it will run the main function and dump a image showing randomly selected
 	# anchor, positive and negative sample
 	class Config():
-		training_dir = "/media/ADAS1/MARS/bbox_train/bbox_train/"
-		testing_dir = "/media/ADAS1/MARS/bbox_test/bbox_test/"
+		training_dir = "/Volumes/Untitled/bbox_train/"
+		testing_dir = "/Volumes/Untitled/bbox_test/"
 		train_batch_size = 64
 		train_number_epochs = 100	
 	
@@ -184,10 +253,10 @@ if __name__ == '__main__':
 	torchvision.transforms.ToTensor()
 	])
 
-	siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,transform=transforms,should_invert=False)
-
+	#siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,transform=transforms,should_invert=False)
+	siamese_dataset = SiameseQuadruplet(imageFolderDataset=folder_dataset,transform=transforms,should_invert=False)
 	vis_dataloader = DataLoader(siamese_dataset,shuffle=True,num_workers=8,batch_size=1)
 	dataiter = iter(vis_dataloader)
 	example_batch = next(dataiter)
-	concatenated = torch.cat((example_batch[0],example_batch[1],example_batch[2]),0)
+	concatenated = torch.cat((example_batch[0],example_batch[1],example_batch[2], example_batch[3]),0)
 	imshow(torchvision.utils.make_grid(concatenated))
