@@ -8,7 +8,9 @@ The MOT_VIDEO_DIRECTORY should have the file structure:
 train
 ├── MOT16-02
 │   ├── det
+│   │   ├── det.txt
 │   ├── gt
+│   │   ├── gt.txt
 │   ├── img1
 │   │   ├── 000001.jpg
 │   │   ├── 000002.jpg
