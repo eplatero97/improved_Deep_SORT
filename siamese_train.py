@@ -1,5 +1,5 @@
-import torchvision.datasets as dset
-from torchvision import transforms
+#import torchvision.datasets as dset
+#from torchvision import transforms
 from torch.utils.data import DataLoader
 import PIL.ImageOps    
 from siamese_dataloader import *
@@ -8,74 +8,46 @@ from tqdm import tqdm
 from pytorch_lightning import Trainer, seed_everything
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import WandbLogger
 from typing import Optional
-from jsonargparse import ArgumentParser, ActionConfigFile
 from pytorch_lightning.profiler.advanced import AdvancedProfiler
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.utilities.cli import LightningArgumentParser
 from torch import nn
-
+import wandb
 seed_everything(42, workers=True)
+
+# turn dictionary into namespace object
+class Bunch(object):
+  def __init__(self, adict):
+    self.__dict__.update(adict)
 
 """
 Get training data
 """
 
-parser = ArgumentParser()
+parser = LightningArgumentParser()
 
-parser.add_argument("--root_dir", type = str, default = "lightning_logs", help = "root path to store logs")
+parser.add_lightning_class_args(Trainer, "trainer") # add trainer args
 parser.add_argument("--training_dir", type = str, default = "/media/ADAS1/MARS/bbox_train/bbox_train/")
 parser.add_argument("--testing_dir", type = str, default = "/media/ADAS1/MARS/bbox_test/bbox_test/")
 parser.add_argument("--train_batch_size", type = int, default = 128)
-parser.add_argument("--train_epochs", type = int, default = 100)
-parser.add_argument("--use_dropout", type = int, default = 0)
+parser.add_argument("--use_dropout", type = bool, default = False)
 parser.add_argument("--act", type=str, default = "relu", help = "activation layer to use for training encoder")
-# parser.add_argument("--deterministic", type=int, default = 0, help = "whether to make enable cudnn.deterministic or not. If True, will make training slower but it will better ensure reprodusability")
-parser.add_argument("--config", action = ActionConfigFile) 
 
-cfg = parser.parse_args()
-
-
-
-# define Deep SORT dataloader
-class DeepSORTModule(pl.LightningDataModule):
-	def __init__(self, root: str = "path/to/dir", batch_size: int = 32):
-		"""Deep SORT Data Module
-
-        Args:
-            root: path to training/testing directory
-            batch_size: batch size
-        """
-		super().__init__()
-		self.root = root
-		self.batch_size = batch_size
-		self.transforms = transforms.Compose([
-										transforms.Resize((256,128)),
-										transforms.ColorJitter(hue=.05, saturation=.05),
-										transforms.RandomHorizontalFlip(),
-										transforms.RandomRotation(20, resample=PIL.Image.BILINEAR),
-										transforms.ToTensor()
-										])
-
-	def setup(self, stage: Optional[str] = None):
-		folder_dataset = dset.ImageFolder(root=self.root)
-		self.siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
-											  transform=self.transforms,should_invert=False) # Get dataparser class object
-		
-
-	def train_dataloader(self):
-		return DataLoader(self.siamese_dataset,shuffle=True, 
-						  num_workers=4,batch_size=self.batch_size) # PyTorch data parser obeject
-
+cfg = Bunch(parser.parse_args()) # `parse_args()` returns dictionary of args
+trainer_cfg = Bunch(cfg.trainer)
 
 
 # init network and dataloader
 if cfg.act == "relu":
 	act = nn.ReLU
 elif cfg.act == "gelu":
-	act = nn.GELU()
+	act = nn.GELU
 else:
-	print(f"yous activation: {cfg.act} is not defined")
+	print(f"your activation: {cfg.act} is not defined")
 	raise 
+
 
 net = SiameseNetwork(use_dropout = cfg.use_dropout, act = act).cuda() # init model on gpu
 train_datamodule = DeepSORTModule(cfg.training_dir, cfg.train_batch_size) # init training dataloader
@@ -84,12 +56,12 @@ train_datamodule = DeepSORTModule(cfg.training_dir, cfg.train_batch_size) # init
 # create model checkpoint every 20 epochs
 checkpoint_callback = ModelCheckpoint(
     every_n_epochs = 20,
-    dirpath = cfg.root_dir,
+    dirpath = trainer_cfg.default_root_dir,
     filename="Deep-SORT-{epoch:02d}-{val_loss:.2f}"
 )
 
 
-  
+# create custom calls during training
 class MyPrintingCallback(Callback):  
   
 	def on_init_start(self, trainer):  
@@ -102,19 +74,22 @@ class MyPrintingCallback(Callback):
 	def on_train_end(self, trainer, pl_module):  
 		print('Training has Finished') 
 
-# record time taken to execute each function with AdvancedProfiler
 
-profiler = AdvancedProfiler(dirpath = cfg.root_dir, filename = "adv_profile.txt")
 
-# init Trainer object (TensorBoard logger is used by default)
-trainer = Trainer(default_root_dir = cfg.root_dir,
-				  log_every_n_steps=10,
-                  max_epochs = cfg.train_epochs,
-                  gpus = -1,
-                  callbacks=[checkpoint_callback, MyPrintingCallback()],
-				  deterministic = False,
-				  profiler = profiler) 
+# init profiler to analyze time taken to execute model
+profiler = AdvancedProfiler(dirpath = trainer_cfg.default_root_dir, filename = "adv_profile.txt")
 
+# init wandb and pass configurations to wandb
+wandb_logger = WandbLogger(project="smart-bus", name = "test_trial", log_model = "all")
+wandb_logger.experiment.config.update(cfg)
+
+# add all custom trainer configurations
+trainer_cfg.callbacks = [checkpoint_callback, MyPrintingCallback()]
+trainer_cfg.profiler = profiler
+trainer_cfg.logger = wandb_logger
+
+# init Trainer with configuration parameters
+trainer = Trainer.from_argparse_args(trainer_cfg)
 
 # begin training
 trainer.fit(net, train_datamodule)

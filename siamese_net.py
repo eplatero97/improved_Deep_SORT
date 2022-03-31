@@ -14,6 +14,9 @@ from torch import optim
 import torch.nn.functional as F
 from pytorch_lightning.core.lightning import LightningModule
 from scipy.stats import multivariate_normal
+import pytorch_lightning as pl
+from typing import Optional
+from siamese_dataloader import SiameseTriplet
 
 def get_gaussian_mask():
 	#128 is image size
@@ -86,6 +89,7 @@ class SiameseNetwork(LightningModule):
             use_dropout: whether to use dropout during training 
         """
         super(SiameseNetwork, self).__init__()
+        # self.save_hyperparameters()
 
         #Outputs batch X 512 X 1 X 1 
         ops = nn.ModuleList()
@@ -155,8 +159,8 @@ class SiameseNetwork(LightningModule):
 
         anchor_out, positive_out, negative_out = self(anchor, positive, negative) # Model forward propagation
 
-        triplet_loss = criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
-        self.log("performance", {"triplet_loss": triplet_loss.item()}, logger = True, on_step = True, on_epoch = False)
+        triplet_loss: torch.float32 = criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
+        self.log("train/triplet_loss",  triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
         return triplet_loss
 
 
@@ -164,4 +168,34 @@ class SiameseNetwork(LightningModule):
         optim.Adam(self.parameters(), lr = 0.0005)
 
 
+
+# define Deep SORT dataloader
+class DeepSORTModule(pl.LightningDataModule):
+	def __init__(self, data_path: str = "path/to/dir", batch_size: int = 32):
+		"""Deep SORT Data Module
+
+        Args:
+            data_path: path to training/testing directory
+            batch_size: batch size
+        """
+		super().__init__()
+		self.root = data_path
+		self.batch_size = batch_size
+		self.transforms = transforms.Compose([
+										transforms.Resize((256,128)),
+										transforms.ColorJitter(hue=.05, saturation=.05),
+										transforms.RandomHorizontalFlip(),
+										transforms.RandomRotation(20, resample=PIL.Image.BILINEAR),
+										transforms.ToTensor()
+										])
+
+	def setup(self, stage: Optional[str] = None):
+		folder_dataset = dset.ImageFolder(root=self.root)
+		self.siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
+											  transform=self.transforms,should_invert=False) # Get dataparser class object
+		
+
+	def train_dataloader(self):
+		return DataLoader(self.siamese_dataset,shuffle=True, 
+						  num_workers=4,batch_size=self.batch_size) # PyTorch data parser obeject
 
