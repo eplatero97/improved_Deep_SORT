@@ -80,6 +80,23 @@ criterion = TripletLoss(margin=1)
 #Multiply each image with mask to give attention to center of the image.
 gaussian_mask = get_gaussian_mask().cuda()
 
+class MetricNetwork(LightningModule):
+    def __init__(self, single_embedding_shape):
+        super(MetricNetwork, self).__init__()
+        self.input_shape = single_embedding_shape
+        self.input_shape[0]=self.input_shape*2
+        ops = nn.ModuleList()
+        ops.append(nn.Linear(self.input_shape,10))
+        ops.append(nn.ReLU)
+        ops.append(nn.Linear(10,10))
+        ops.append(nn.ReLU)
+        ops.append(nn.Linear(10,10))
+        ops.append(nn.ReLU)
+        ops.append(nn.Linear(10,2))
+        ops.append(nn.Softmax)
+        self.net = nn.Sequential(*ops)
+
+
 
 class SiameseNetwork(LightningModule):
     def __init__(self, use_dropout: bool = False, act = nn.ReLU):
