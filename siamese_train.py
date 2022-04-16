@@ -32,24 +32,29 @@ parser.add_lightning_class_args(Trainer, "trainer") # add trainer args
 parser.add_argument("--training_dir", type = str, default = "/media/ADAS1/MARS/bbox_train/bbox_train/")
 parser.add_argument("--testing_dir", type = str, default = "/media/ADAS1/MARS/bbox_test/bbox_test/")
 parser.add_argument("--train_batch_size", type = int, default = 128)
-parser.add_argument("--use_dropout", type = bool, default = False)
-parser.add_argument("--act", type=str, default = "relu", help = "activation layer to use for training encoder")
+parser = SiameseNetwork.add_model_specific_args(parser) # add model specific parameters
 
 cfg = Bunch(parser.parse_args()) # `parse_args()` returns dictionary of args
 trainer_cfg = Bunch(cfg.trainer)
 
 
-# init network and dataloader
+# define activation
 if cfg.act == "relu":
-	act = nn.ReLU
+	cfg.act = nn.ReLU
 elif cfg.act == "gelu":
-	act = nn.GELU
+	cfg.act = nn.GELU
 else:
 	print(f"your activation: {cfg.act} is not defined")
 	raise 
 
+# define criterion
+if cfg.criterion == "triplet_cos":
+	cfg.criterion = TripletLoss(margin=1)
+elif cfg.criterion == "triplet_eucl":
+	cfg.criterion = nn.TripletMarginLoss()
 
-net = SiameseNetwork(use_dropout = cfg.use_dropout, act = act).cuda() # init model on gpu
+
+net = SiameseNetwork(cfg).cuda() # init model on gpu
 train_datamodule = DeepSORTModule(cfg.training_dir, cfg.train_batch_size) # init training dataloader
 
 
@@ -76,16 +81,13 @@ class MyPrintingCallback(Callback):
 
 
 
-# init profiler to analyze time taken to execute model
-profiler = AdvancedProfiler(dirpath = trainer_cfg.default_root_dir, filename = "adv_profile.txt")
-
 # init wandb and pass configurations to wandb
-wandb_logger = WandbLogger(project="smart-bus", name = "test_trial", log_model = "all")
+wandb_logger = WandbLogger(project="smart-bus", name = "deepsort-nvidiaai", log_model = "all")
 wandb_logger.experiment.config.update(cfg)
 
 # add all custom trainer configurations
 trainer_cfg.callbacks = [checkpoint_callback, MyPrintingCallback()]
-trainer_cfg.profiler = profiler
+trainer_cfg.profiler = "simple"
 trainer_cfg.logger = wandb_logger
 
 # init Trainer with configuration parameters

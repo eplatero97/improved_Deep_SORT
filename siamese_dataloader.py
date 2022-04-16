@@ -19,6 +19,31 @@ import imgaug as ia
 
 import glob 
 
+class get_gaussian_mask:
+	def __init__(self, dim0 = 256, dim1 = 128):
+		
+		#128 is image size
+		# We will be using 256x128 patch instead of original 128x128 path because we are using for pedestrain with 1:2 AR.
+		x, y = np.mgrid[0:1.0:256j, 0:1.0:128j] #128 is input size.
+		xy = np.column_stack([x.flat, y.flat])
+		mu = np.array([0.5,0.5])
+		sigma = np.array([0.22,0.22])
+		covariance = np.diag(sigma**2) 
+		z = multivariate_normal.pdf(xy, mean=mu, cov=covariance) 
+		z = z.reshape(x.shape) 
+
+		z = z / z.max()
+		z  = z.astype(np.float32)
+
+		self.mask = torch.from_numpy(z)
+
+	def __call__(self, img):
+		#Multiply each image with mask to give attention to center of the image.
+		# Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
+		return self.mask * img 
+
+
+
 def imshow(img,text=None,should_save=False):
 	npimg = img.numpy()
 	plt.axis("off")
@@ -242,6 +267,7 @@ if __name__ == '__main__':
 		testing_dir = "/Volumes/Untitled/bbox_test/"
 		train_batch_size = 64
 		train_number_epochs = 100	
+		loss_type = "triplet" # "quadruplet"
 	
 	folder_dataset = dset.ImageFolder(root=Config.training_dir)
 
@@ -251,10 +277,13 @@ if __name__ == '__main__':
 	torchvision.transforms.RandomHorizontalFlip(),
 	torchvision.transforms.RandomRotation(20, resample=PIL.Image.BILINEAR),
 	torchvision.transforms.ToTensor()
+	# get_gaussian_mask()
 	])
 
-	#siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,transform=transforms,should_invert=False)
-	siamese_dataset = SiameseQuadruplet(imageFolderDataset=folder_dataset,transform=transforms,should_invert=False)
+	if Config.loss_type == "triplet":
+		siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,transform=transforms,should_invert=False)
+	else:
+		siamese_dataset = SiameseQuadruplet(imageFolderDataset=folder_dataset,transform=transforms,should_invert=False)
 	vis_dataloader = DataLoader(siamese_dataset,shuffle=True,num_workers=8,batch_size=1)
 	dataiter = iter(vis_dataloader)
 	example_batch = next(dataiter)

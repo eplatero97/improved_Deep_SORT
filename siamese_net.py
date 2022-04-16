@@ -18,23 +18,40 @@ import pytorch_lightning as pl
 from typing import Optional
 from siamese_dataloader import SiameseTriplet
 
-def get_gaussian_mask():
-	#128 is image size
-	# We will be using 256x128 patch instead of original 128x128 path because we are using for pedestrain with 1:2 AR.
-	x, y = np.mgrid[0:1.0:256j, 0:1.0:128j] #128 is input size.
-	xy = np.column_stack([x.flat, y.flat])
-	mu = np.array([0.5,0.5])
-	sigma = np.array([0.22,0.22])
-	covariance = np.diag(sigma**2) 
-	z = multivariate_normal.pdf(xy, mean=mu, cov=covariance) 
-	z = z.reshape(x.shape) 
 
-	z = z / z.max()
-	z  = z.astype(np.float32)
 
-	mask = torch.from_numpy(z)
+"""
+using below blur is really slow to perform on cpu. 
+As such, authors move it to the forward part of the model
+to perform operation on gpu 
+"""
+class get_gaussian_mask:
+    def __init__(self, dim0 = 256, dim1 = 128, cuda: bool = False):
+        
+        #128 is image size
+        # We will be using 256x128 patch instead of original 128x128 path because we are using for pedestrain with 1:2 AR.
+        x, y = np.mgrid[0:1.0:256j, 0:1.0:128j] #128 is input size.
+        xy = np.column_stack([x.flat, y.flat])
+        mu = np.array([0.5,0.5])
+        sigma = np.array([0.22,0.22])
+        covariance = np.diag(sigma**2) 
+        z = multivariate_normal.pdf(xy, mean=mu, cov=covariance) 
+        z = z.reshape(x.shape) 
 
-	return mask
+        z = z / z.max()
+        z  = z.astype(np.float32)
+
+        if cuda:
+            # `img` is also expected to be cuda
+            self.mask = torch.from_numpy(z).cuda()
+        else:
+            self.mask = torch.from_numpy(z)
+    
+    @torch.no_grad()
+    def __call__(self, img):
+        #Multiply each image with mask to give attention to center of the image.
+        # Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
+        return self.mask * img 
 
 
 class ContrastiveLoss(torch.nn.Module):
@@ -67,75 +84,228 @@ class TripletLoss(nn.Module):
         self.margin = margin
 
     def forward(self, anchor, positive, negative, size_average=True):
-        distance_positive = F.cosine_similarity(anchor,positive) #Each is batch X 512 
-        distance_negative = F.cosine_similarity(anchor,negative)  # .pow(.5)
+        distance_positive = F.cosine_similarity(anchor,positive) # maximize 
+        distance_negative = F.cosine_similarity(anchor,negative)  # minimize (can take to the power of `.pow(.5)`)
         losses = (1- distance_positive)**2 + (0 - distance_negative)**2      #Margin not used in cosine case. 
         return losses.mean() if size_average else losses.sum()
 
 
 
 
-criterion = TripletLoss(margin=1)
+class BasicBlock(LightningModule):
+    def __init__(self, in_channels,out_channels,kernel_size,stride=1, act=nn.ReLU):
+        super().__init__()
+        conv = nn.Conv2d(in_channels,out_channels,kernel_size,stride)
+        activation = act()
+        bn = nn.BatchNorm2d(out_channels)
+        self.block = nn.Sequential(conv, activation, bn)
 
-#Multiply each image with mask to give attention to center of the image.
-gaussian_mask = get_gaussian_mask().cuda()
+    def forward(self, x):
+        return self.block(x)
+
+# https://peiyihung.github.io/mywebsite/category/learning/2021/08/22/build-resnet-from-scratch-with-pytorch.html
+class ResidualBlock(nn.Module):
+    def __init__(self, ni: int, nf: int):
+        
+        super().__init__()
+        
+        # shorcut
+        if ni < nf: 
+            
+            # change channel size
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(ni, nf, kernel_size=1, stride=2),
+                nn.BatchNorm2d(nf))
+            
+            # downsize the feature map
+            first_stride = 2
+        else:
+            self.shortcut = lambda x: x
+            first_stride = 1
+        
+        # convnet
+        self.conv = nn.Sequential(
+            nn.Conv2d(ni, nf, kernel_size=3, stride=first_stride, padding=1),
+            nn.BatchNorm2d(nf),
+            nn.ReLU(True),
+            nn.Conv2d(nf, nf, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(nf)
+        )
+    
+    def forward(self, x):
+        return F.relu(self.conv(x) + self.shortcut(x))
 
 
 class SiameseNetwork(LightningModule):
-    def __init__(self, use_dropout: bool = False, act = nn.ReLU):
+    
+    @staticmethod
+    def add_model_specific_args(parent_parser):
         """Deep SORT encoder (siamese network)
 
         Args:
             use_dropout: whether to use dropout during training 
+            lr: learning rate
+            criterion: select which loss function to use during training
+            act: specify which activation function to use
+            blur: whether to blur image before creating embedding to focus attention on center of content 
+            arch_version: select which architecture to choose from
         """
+        parser = parent_parser.add_argument_group("reid")
+        parser.add_argument("--use_dropout", type = bool, default = False)
+        parser.add_argument("--lr", type = float, default = 0.0005)
+        parser.add_argument("--criterion", type = str, default = "triplet_cos")
+        parser.add_argument("--act", type=str, default = "relu")
+        parser.add_argument("--blur", type=bool, default=True)
+        parser.add_argument("--arch_version", type=str, default="v1")
+        return parent_parser
+    
+    def __init__(self, cfg):
+
         super(SiameseNetwork, self).__init__()
         # self.save_hyperparameters()
+        self.use_dropout: bool = cfg.use_dropout
+        self.lr: float = cfg.lr
+        self.criterion: nn.modules.loss = cfg.criterion
+        self.act: nn.modules.activation = cfg.act
+        self.blur: bool = cfg.blur
+        if self.blur:
+            self.gaussian_mask = get_gaussian_mask(cuda = True)
 
-        #Outputs batch X 512 X 1 X 1 
+        # initiate model
+        if cfg.arch_version == "v1":
+            self.init_archv1()
+        elif cfg.arch_version == "v2":
+            self.init_archv2()
+        elif cfg.arch_version == "v3":
+            self.init_archv3()
+
+    def init_archv1(self):
+        
+        # define model parameters
+        act: nn.modules.activation = self.act
+        use_dropout: bool = self.use_dropout
+
+
         ops = nn.ModuleList()
-        ops.append(nn.Conv2d(3,32,kernel_size=3,stride=2))
-        ops.append(act())
-        ops.append(nn.BatchNorm2d(32))
+        ops.append(BasicBlock(3,32,kernel_size=3,stride=2, act=act)) # shape: torch.Size([batch_size, 32, 127, 63])
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
-        ops.append(nn.Conv2d(32,64,kernel_size=3,stride=2))
-        ops.append(act())
-        ops.append(nn.BatchNorm2d(64))
+        ops.append(BasicBlock(32,64,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 64, 63, 31])
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
-        ops.append(nn.Conv2d(64,128,kernel_size=3,stride=2))
-        ops.append(act())
-        ops.append(nn.BatchNorm2d(128))
+        ops.append(BasicBlock(64,128,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 128, 31, 15])
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
-        ops.append(nn.Conv2d(128,256,kernel_size=1,stride=2))
-        ops.append(act())
-        ops.append(nn.BatchNorm2d(256))
+        ops.append(BasicBlock(128,256,kernel_size=1,stride=2,act=act)) # shape: torch.Size([batch_size, 256, 16, 8])
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
-        ops.append(nn.Conv2d(256,256,kernel_size=1,stride=2))
-        ops.append(act())
-        ops.append(nn.BatchNorm2d(256))
+        ops.append(BasicBlock(256,256,kernel_size=1,stride=2,act=act)) # shape: torch.Size([batch_size, 256, 8, 4])
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
-        ops.append(nn.Conv2d(256,512,kernel_size=3,stride=2))
-        ops.append(act())
-        ops.append(nn.BatchNorm2d(512))
+        ops.append(BasicBlock(256,512,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 512, 3, 1])
         if use_dropout:
             ops.append(nn.Dropout2d(p=0.4))
         
-        ops.append(nn.Conv2d(512,1024,kernel_size=1,stride=1))
-        ops.append(act())
-        ops.append(nn.BatchNorm2d(1024))
+
+        ops.append(BasicBlock(512,1024,kernel_size=(3,1),stride=1,act=act)) # shape: torch.Size([batch_size, 1024, 1, 1])
+
+        self.net = nn.Sequential(*ops)
+
+    def init_archv2(self):
+        """
+        version is identical to v1 but we replaced each basic block with a residual block for every operation that contains
+        `kernel_size=1`
+        """
+        
+        # define model parameters
+        act: nn.modules.activation = self.act
+        use_dropout: bool = self.use_dropout
+
+
+        ops = nn.ModuleList()
+        ops.append(BasicBlock(3,32,kernel_size=3,stride=2, act=act)) # shape: torch.Size([batch_size, 32, 127, 63])
+        ops.append(ResidualBlock(32,32))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(BasicBlock(32,64,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 64, 63, 31])
+        ops.append(ResidualBlock(64,64))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(BasicBlock(64,128,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 128, 31, 15])
+        ops.append(ResidualBlock(128,128))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(BasicBlock(128,256,kernel_size=1,stride=2,act=act)) # shape: torch.Size([batch_size, 256, 16, 8])
+        ops.append(ResidualBlock(256,256))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(BasicBlock(256,256,kernel_size=1,stride=2,act=act)) # shape: torch.Size([batch_size, 256, 8, 4])
+        ops.append(ResidualBlock(256,256))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(BasicBlock(256,512,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 512, 3, 1])
+        ops.append(ResidualBlock(512,512))
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        
+
+        ops.append(BasicBlock(512,1024,kernel_size=(3,1),stride=1,act=act)) # shape: torch.Size([batch_size, 1024, 1, 1])
+
+        self.net = nn.Sequential(*ops)
+
+
+    def init_archv3(self):
+        """
+        version is identical to v1 but we replaced each basic block with a residual block for every operation that contains
+        `kernel_size=1`
+        """
+        
+        # define model parameters
+        act: nn.modules.activation = self.act
+        use_dropout: bool = self.use_dropout
+
+
+        ops = nn.ModuleList()
+        ops.append(BasicBlock(3,32,kernel_size=3,stride=2, act=act)) # shape: torch.Size([batch_size, 32, 127, 63])
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(BasicBlock(32,64,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 64, 63, 31])
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(BasicBlock(64,128,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 128, 31, 15])
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(ResidualBlock(128,256))
+        ops.append(nn.MaxPool2d(1,stride=2,padding=0)) # shape: torch.Size([batch_size, 256, 16, 8])
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(ResidualBlock(256,256))
+        ops.append(nn.MaxPool2d(1,stride=2,padding=0)) # shape: torch.Size([batch_size, 256, 8, 4])
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        ops.append(BasicBlock(256,512,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 512, 3, 1])
+        if use_dropout:
+            ops.append(nn.Dropout2d(p=0.4))
+        
+
+        ops.append(BasicBlock(512,1024,kernel_size=(3,1),stride=1,act=act)) # shape: torch.Size([batch_size, 1024, 1, 1])
 
         self.net = nn.Sequential(*ops)
 
     def forward_once(self, x):
-        output = self.net(x)
+        # x.shape: torch.Size([batch_size,3,256,128])
+        
+        batch_size: int = x.shape[0]
+        output = self.net(x) # shape: torch.Size([batch_size,1024,1,1]) 
         #output = output.view(output.size()[0], -1)
         #output = self.fc(output)
+        output = torch.squeeze(output) # shape: torch.Size([batch_size, 1024])
+
+        if batch_size == 1:
+            # if True, then output shape will be: torch.Size([1024])
+            #  thus, we add the batch dimension again to be torch.Size([1,1024])
+            return output.view(1,-1)
         
-        output = torch.squeeze(output)
         return output
 
     def forward(self, input1, input2,input3=None):
@@ -153,19 +323,20 @@ class SiameseNetwork(LightningModule):
         # Get anchor, positive and negative samples
         anchor, positive, negative = batch
         anchor, positive, negative = anchor.cuda(), positive.cuda() , negative.cuda()
- 
- 		# Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
-        anchor, positive, negative = anchor*gaussian_mask, positive*gaussian_mask, negative*gaussian_mask
+
+        if self.blur:
+            anchor, positive, negative = self.gaussian_mask(anchor), self.gaussian_mask(positive), self.gaussian_mask(negative)
 
         anchor_out, positive_out, negative_out = self(anchor, positive, negative) # Model forward propagation
 
-        triplet_loss: torch.float32 = criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
+        triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
         self.log("train/triplet_loss",  triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
         return triplet_loss
 
 
     def configure_optimizers(self):
-        optim.Adam(self.parameters(), lr = 0.0005)
+        optim.Adam(self.parameters(), lr = self.lr)
+
 
 
 
@@ -187,6 +358,7 @@ class DeepSORTModule(pl.LightningDataModule):
 										transforms.RandomHorizontalFlip(),
 										transforms.RandomRotation(20, resample=PIL.Image.BILINEAR),
 										transforms.ToTensor()
+                                        # get_gaussian_mask()
 										])
 
 	def setup(self, stage: Optional[str] = None):
