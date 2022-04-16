@@ -17,7 +17,7 @@ from scipy.stats import multivariate_normal
 import pytorch_lightning as pl
 from typing import Optional
 from siamese_dataloader import SiameseTriplet
-
+from reid_architectures import ReID_Architectures # defines all re-ID architectures
 
 
 """
@@ -105,7 +105,7 @@ class QuadrupletLoss(nn.Module):
                +torch.sum(torch.max(ap_dist2-nn_dist2+self.margin_b, dim=0),dim=0)
 
 
-criterion = QuadrupletLoss(margin_alpha=0.1, margin_beta=0.01)
+# criterion = QuadrupletLoss(margin_alpha=0.1, margin_beta=0.01) criterion is now defined in `siamese_train.py`
 
 
 class BasicBlock(LightningModule):
@@ -179,7 +179,7 @@ class MetricNetwork(LightningModule):
 
 
 
-class SiameseNetwork(LightningModule):
+class SiameseNetwork(ReID_Architectures):
     
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -215,6 +215,9 @@ class SiameseNetwork(LightningModule):
         if self.blur:
             self.gaussian_mask = get_gaussian_mask(cuda = True)
 
+        # define metric network
+        self.metric_network = MetricNetwork(1024)
+
         # initiate model
         if cfg.arch_version == "v1":
             self.init_archv1()
@@ -223,119 +226,8 @@ class SiameseNetwork(LightningModule):
         elif cfg.arch_version == "v3":
             self.init_archv3()
 
-    def init_archv1(self):
+
         
-        # define model parameters
-        act: nn.modules.activation = self.act
-        use_dropout: bool = self.use_dropout
-
-
-        ops = nn.ModuleList()
-        ops.append(BasicBlock(3,32,kernel_size=3,stride=2, act=act)) # shape: torch.Size([batch_size, 32, 127, 63])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(32,64,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 64, 63, 31])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(64,128,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 128, 31, 15])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(128,256,kernel_size=1,stride=2,act=act)) # shape: torch.Size([batch_size, 256, 16, 8])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(256,256,kernel_size=1,stride=2,act=act)) # shape: torch.Size([batch_size, 256, 8, 4])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(256,512,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 512, 3, 1])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        
-
-        ops.append(BasicBlock(512,1024,kernel_size=(3,1),stride=1,act=act)) # shape: torch.Size([batch_size, 1024, 1, 1])
-
-        self.net = nn.Sequential(*ops)
-
-    def init_archv2(self):
-        """
-        version is identical to v1 but we replaced each basic block with a residual block for every operation that contains
-        `kernel_size=1`
-        """
-        
-        # define model parameters
-        act: nn.modules.activation = self.act
-        use_dropout: bool = self.use_dropout
-
-
-        ops = nn.ModuleList()
-        ops.append(BasicBlock(3,32,kernel_size=3,stride=2, act=act)) # shape: torch.Size([batch_size, 32, 127, 63])
-        ops.append(ResidualBlock(32,32))
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(32,64,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 64, 63, 31])
-        ops.append(ResidualBlock(64,64))
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(64,128,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 128, 31, 15])
-        ops.append(ResidualBlock(128,128))
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(128,256,kernel_size=1,stride=2,act=act)) # shape: torch.Size([batch_size, 256, 16, 8])
-        ops.append(ResidualBlock(256,256))
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(256,256,kernel_size=1,stride=2,act=act)) # shape: torch.Size([batch_size, 256, 8, 4])
-        ops.append(ResidualBlock(256,256))
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(256,512,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 512, 3, 1])
-        ops.append(ResidualBlock(512,512))
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        
-
-        ops.append(BasicBlock(512,1024,kernel_size=(3,1),stride=1,act=act)) # shape: torch.Size([batch_size, 1024, 1, 1])
-
-        self.net = nn.Sequential(*ops)
-
-
-    def init_archv3(self):
-        """
-        version is identical to v1 but we replaced each basic block with a residual block for every operation that contains
-        `kernel_size=1`
-        """
-        
-        # define model parameters
-        act: nn.modules.activation = self.act
-        use_dropout: bool = self.use_dropout
-
-
-        ops = nn.ModuleList()
-        ops.append(BasicBlock(3,32,kernel_size=3,stride=2, act=act)) # shape: torch.Size([batch_size, 32, 127, 63])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(32,64,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 64, 63, 31])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(64,128,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 128, 31, 15])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(ResidualBlock(128,256))
-        ops.append(nn.MaxPool2d(1,stride=2,padding=0)) # shape: torch.Size([batch_size, 256, 16, 8])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(ResidualBlock(256,256))
-        ops.append(nn.MaxPool2d(1,stride=2,padding=0)) # shape: torch.Size([batch_size, 256, 8, 4])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        ops.append(BasicBlock(256,512,kernel_size=3,stride=2,act=act)) # shape: torch.Size([batch_size, 512, 3, 1])
-        if use_dropout:
-            ops.append(nn.Dropout2d(p=0.4))
-        
-
-        ops.append(BasicBlock(512,1024,kernel_size=(3,1),stride=1,act=act)) # shape: torch.Size([batch_size, 1024, 1, 1])
-
-        self.net = nn.Sequential(*ops)
-        self.metric_network = MetricNetwork(1024)
     def forward_once(self, x):
         # x.shape: torch.Size([batch_size,3,256,128])
         
@@ -360,7 +252,7 @@ class SiameseNetwork(LightningModule):
             output4 = self.forward_once(input4)
             return output1,output2,output3, output4
 
-        return output1, output2
+        return output1,output2,output3
 
     def training_step(self, batch, batch_idx):
 
@@ -371,7 +263,8 @@ class SiameseNetwork(LightningModule):
 
             if self.blur:
                 anchor, positive, negative = self.gaussian_mask(anchor), self.gaussian_mask(positive), self.gaussian_mask(negative)
-
+            
+            anchor_out, positive_out, negative_out = self(anchor, positive, negative)
             triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
             self.log(f"train/{self.criterion_name}",  triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
             return triplet_loss
