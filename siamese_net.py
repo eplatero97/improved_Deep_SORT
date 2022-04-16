@@ -90,6 +90,22 @@ class TripletLoss(nn.Module):
         return losses.mean() if size_average else losses.sum()
 
 
+class QuadrupletLoss(nn.Module):
+
+    def __init__(self, margin_alpha, margin_beta, **kwargs):
+        super(QuadrupletLoss, self).__init__()
+        self.margin_a = margin_alpha
+        self.margin_b = margin_beta
+
+    def forward(self, ap_dist, an_dist, nn_dist):
+        ap_dist2 = torch.square(ap_dist)
+        an_dist2 = torch.square(an_dist)
+        nn_dist2 = torch.square(nn_dist)
+        return torch.sum(torch.max(ap_dist2-an_dist2+self.margin_a,dim=0),dim=0)\
+               +torch.sum(torch.max(ap_dist2-nn_dist2+self.margin_b, dim=0),dim=0)
+
+
+criterion = QuadrupletLoss(margin_alpha=0.1, margin_beta=0.01)
 
 
 class BasicBlock(LightningModule):
@@ -99,7 +115,7 @@ class BasicBlock(LightningModule):
         activation = act()
         bn = nn.BatchNorm2d(out_channels)
         self.block = nn.Sequential(conv, activation, bn)
-
+        
     def forward(self, x):
         return self.block(x)
 
@@ -135,6 +151,33 @@ class ResidualBlock(nn.Module):
     def forward(self, x):
         return F.relu(self.conv(x) + self.shortcut(x))
 
+class MetricNetwork(LightningModule):
+    def apply_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.kaiming_normal_(m)
+    def __init__(self, single_embedding_shape):
+        super(MetricNetwork, self).__init__()
+        self.input_shape = single_embedding_shape
+        self.input_shape[0]=self.input_shape*2
+        ops = nn.ModuleList()
+        ops.append(nn.Linear(self.input_shape,10))
+        ops.append(nn.ReLU)
+        ops.append(nn.Linear(10,10))
+        ops.append(nn.ReLU)
+        ops.append(nn.Linear(10,10))
+        ops.append(nn.ReLU)
+        ops.append(nn.Linear(10,2))
+        ops.append(nn.Softmax)
+        self.net = nn.Sequential(*ops)
+        self.net.apply(self.apply_weights)
+
+    def forward(self, x):
+        out = self.net(x)
+        return out[:, 0]
+
+
+
+
 
 class SiameseNetwork(LightningModule):
     
@@ -166,6 +209,7 @@ class SiameseNetwork(LightningModule):
         self.use_dropout: bool = cfg.use_dropout
         self.lr: float = cfg.lr
         self.criterion: nn.modules.loss = cfg.criterion
+        self.criterion_name: str = type(cfg.criterion).__name__
         self.act: nn.modules.activation = cfg.act
         self.blur: bool = cfg.blur
         if self.blur:
@@ -291,7 +335,7 @@ class SiameseNetwork(LightningModule):
         ops.append(BasicBlock(512,1024,kernel_size=(3,1),stride=1,act=act)) # shape: torch.Size([batch_size, 1024, 1, 1])
 
         self.net = nn.Sequential(*ops)
-
+        self.metric_network = MetricNetwork(1024)
     def forward_once(self, x):
         # x.shape: torch.Size([batch_size,3,256,128])
         
@@ -308,30 +352,50 @@ class SiameseNetwork(LightningModule):
         
         return output
 
-    def forward(self, input1, input2,input3=None):
+    def forward(self, input1, input2,input3,input4=None):
         output1 = self.forward_once(input1)
         output2 = self.forward_once(input2)
-
-        if input3 is not None:
-            output3 = self.forward_once(input3)
-            return output1,output2,output3
+        output3 = self.forward_once(input3)
+        if input4 is not None:
+            output4 = self.forward_once(input4)
+            return output1,output2,output3, output4
 
         return output1, output2
 
     def training_step(self, batch, batch_idx):
-		
-        # Get anchor, positive and negative samples
-        anchor, positive, negative = batch
-        anchor, positive, negative = anchor.cuda(), positive.cuda() , negative.cuda()
 
-        if self.blur:
-            anchor, positive, negative = self.gaussian_mask(anchor), self.gaussian_mask(positive), self.gaussian_mask(negative)
+        if self.criterion_name == "TripletLoss":
+            # Get anchor, positive and negative samples
+            anchor, positive, negative = batch
+            anchor, positive, negative = anchor.cuda(), positive.cuda() , negative.cuda()
 
-        anchor_out, positive_out, negative_out = self(anchor, positive, negative) # Model forward propagation
+            if self.blur:
+                anchor, positive, negative = self.gaussian_mask(anchor), self.gaussian_mask(positive), self.gaussian_mask(negative)
 
-        triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
-        self.log("train/triplet_loss",  triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
-        return triplet_loss
+            triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
+            self.log(f"train/{self.criterion_name}",  triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
+            return triplet_loss
+		elif self.criterion_name == "QuadrupletLoss":
+            # get anchor, positive, negative and negative2 embeddings
+            anchor, positive, negative, negative2 = batch
+            anchor, positive, negative, negative2 = anchor.cuda(), positive.cuda() , negative.cuda(), negative2.cuda()
+    
+            # Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
+            anchor, positive, negative, negative2 = anchor*gaussian_mask, positive*gaussian_mask, negative*gaussian_mask, negative2*gaussian_mask
+
+            anchor_out, positive_out, negative_out, negative2_out = self(anchor, positive, negative, negative2) # Model forward propagation
+            anchor_positive_out = torch.cat([anchor_out,positive_out],dim=-1)
+            anchor_negative_out = torch.cat([anchor_out,negative_out],dim=-1)
+            negative_negative2_out = torch.cat([negative_out,negative2_out],dim=-1)
+            ap_dist = self.metric_network(anchor_positive_out)
+            an_dist = self.metric_network(anchor_negative_out)
+            nn_dist = self.metric_network(negative_negative2_out)
+
+            quadruplet_loss: torch.float32 = criterion(ap_dist, an_dist, nn_dist) # Compute triplet loss (based on cosine simality) on the output feature maps
+            self.log(f"train/{self.criterion_name}",  quadruplet_loss.item(), logger = True, on_step = True, on_epoch = False)
+            return quadruplet_loss
+
+
 
 
     def configure_optimizers(self):
