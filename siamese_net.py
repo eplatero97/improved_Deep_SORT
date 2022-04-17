@@ -17,7 +17,7 @@ from scipy.stats import multivariate_normal
 import pytorch_lightning as pl
 from typing import Optional
 from siamese_dataloader import SiameseTriplet
-from reid_architectures import ReID_Architectures # defines all re-ID architectures
+from reid_architectures import *
 
 
 """
@@ -108,48 +108,7 @@ class QuadrupletLoss(nn.Module):
 # criterion = QuadrupletLoss(margin_alpha=0.1, margin_beta=0.01) criterion is now defined in `siamese_train.py`
 
 
-class BasicBlock(LightningModule):
-    def __init__(self, in_channels,out_channels,kernel_size,stride=1, act=nn.ReLU):
-        super().__init__()
-        conv = nn.Conv2d(in_channels,out_channels,kernel_size,stride)
-        activation = act()
-        bn = nn.BatchNorm2d(out_channels)
-        self.block = nn.Sequential(conv, activation, bn)
-        
-    def forward(self, x):
-        return self.block(x)
 
-# https://peiyihung.github.io/mywebsite/category/learning/2021/08/22/build-resnet-from-scratch-with-pytorch.html
-class ResidualBlock(nn.Module):
-    def __init__(self, ni: int, nf: int):
-        
-        super().__init__()
-        
-        # shorcut
-        if ni < nf: 
-            
-            # change channel size
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(ni, nf, kernel_size=1, stride=2),
-                nn.BatchNorm2d(nf))
-            
-            # downsize the feature map
-            first_stride = 2
-        else:
-            self.shortcut = lambda x: x
-            first_stride = 1
-        
-        # convnet
-        self.conv = nn.Sequential(
-            nn.Conv2d(ni, nf, kernel_size=3, stride=first_stride, padding=1),
-            nn.BatchNorm2d(nf),
-            nn.ReLU(True),
-            nn.Conv2d(nf, nf, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(nf)
-        )
-    
-    def forward(self, x):
-        return F.relu(self.conv(x) + self.shortcut(x))
 
 class MetricNetwork(LightningModule):
     def apply_weights(self, m):
@@ -194,12 +153,12 @@ class SiameseNetwork(ReID_Architectures):
             arch_version: select which architecture to choose from
         """
         parser = parent_parser.add_argument_group("reid")
-        parser.add_argument("--use_dropout", type = bool, default = False)
-        parser.add_argument("--lr", type = float, default = 0.0005)
-        parser.add_argument("--criterion", type = str, default = "triplet_cos")
-        parser.add_argument("--act", type=str, default = "relu")
-        parser.add_argument("--blur", type=bool, default=True)
-        parser.add_argument("--arch_version", type=str, default="v1")
+        parser.add_argument("--model.use_dropout", type = bool, default = False)
+        parser.add_argument("--model.lr", type = float, default = 0.0005)
+        parser.add_argument("--model.criterion", type = str, default = "triplet_cos")
+        parser.add_argument("--model.act", type=str, default = "relu")
+        parser.add_argument("--model.blur", type=bool, default=True)
+        parser.add_argument("--model.arch_version", type=str, default="v0")
         return parent_parser
     
     def __init__(self, cfg):
@@ -219,30 +178,19 @@ class SiameseNetwork(ReID_Architectures):
         self.metric_network = MetricNetwork(1024)
 
         # initiate model
-        if cfg.arch_version == "v1":
+        if cfg.arch_version == "v0":
+            self.init_archv0
+        elif cfg.arch_version == "v1":
             self.init_archv1()
-        elif cfg.arch_version == "v2":
-            self.init_archv2()
-        elif cfg.arch_version == "v3":
-            self.init_archv3()
+        else:
+            print(f"Specified version is NOT defined")
+            raise 
 
 
         
     def forward_once(self, x):
-        # x.shape: torch.Size([batch_size,3,256,128])
-        
-        batch_size: int = x.shape[0]
-        output = self.net(x) # shape: torch.Size([batch_size,1024,1,1]) 
-        #output = output.view(output.size()[0], -1)
-        #output = self.fc(output)
-        output = torch.squeeze(output) # shape: torch.Size([batch_size, 1024])
-
-        if batch_size == 1:
-            # if True, then output shape will be: torch.Size([1024])
-            #  thus, we add the batch dimension again to be torch.Size([1,1024])
-            return output.view(1,-1)
-        
-        return output
+        # x.shape: Union[torch.Size([batch_size,3,256,128]), torch.Size([batch_size,3,128,64])]
+        return self.net(x) # shape: torch.Size([batch_size, feat_dim]) 
 
     def forward(self, input1, input2,input3,input4=None):
         output1 = self.forward_once(input1)
@@ -274,7 +222,8 @@ class SiameseNetwork(ReID_Architectures):
             anchor, positive, negative, negative2 = anchor.cuda(), positive.cuda() , negative.cuda(), negative2.cuda()
     
             # Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
-            anchor, positive, negative, negative2 = anchor*gaussian_mask, positive*gaussian_mask, negative*gaussian_mask, negative2*gaussian_mask
+            if self.blur:
+                anchor, positive, negative, negative2 = anchor*gaussian_mask, positive*gaussian_mask, negative*gaussian_mask, negative2*gaussian_mask
 
             anchor_out, positive_out, negative_out, negative2_out = self(anchor, positive, negative, negative2) # Model forward propagation
             anchor_positive_out = torch.cat([anchor_out,positive_out],dim=-1)

@@ -1,0 +1,3 @@
+Model,Link,Input_Resize,Dim_read,Notes
+DeepSORT-ReID,ZQPei/deep_sort_pytorch: MOT using deepsort and yolov3 with pytorch (github.com),"(64,128)","Width,Height",Dimensions of resize image is the same dimensions as all cropped images in the Market1501 dataset
+DeepSORT-ReID,abhyantrika/nanonets_object_tracking (github.com),"(256,128)","Height,Width",

@@ -15,6 +15,7 @@ from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 from torch import nn
 import wandb
+from loguru import logger 
 seed_everything(42, workers=True)
 
 # turn dictionary into namespace object
@@ -52,7 +53,8 @@ if cfg.criterion == "triplet_cos":
 	cfg.criterion = TripletLoss(margin=1)
 elif cfg.criterion == "triplet_eucl":
 	cfg.criterion = nn.TripletMarginLoss()
-
+elif cfg.criterion == "quad_metric":
+	cfg.criterion = QuadrupletLoss(margin_alpha=0.1, margin_beta=0.01) 
 
 net = SiameseNetwork(cfg).cuda() # init model on gpu
 train_datamodule = DeepSORTModule(cfg.training_dir, cfg.train_batch_size) # init training dataloader
