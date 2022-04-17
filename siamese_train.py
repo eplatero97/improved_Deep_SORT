@@ -14,6 +14,7 @@ from pytorch_lightning.profiler.advanced import AdvancedProfiler
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 from torch import nn
+from criterions import * # imports all defined criterions
 import wandb
 from loguru import logger 
 seed_everything(42, workers=True)
@@ -34,29 +35,49 @@ parser.add_argument("--training_dir", type = str, default = "/media/ADAS1/MARS/b
 parser.add_argument("--testing_dir", type = str, default = "/media/ADAS1/MARS/bbox_test/bbox_test/")
 parser.add_argument("--train_batch_size", type = int, default = 128)
 parser = SiameseNetwork.add_model_specific_args(parser) # add model specific parameters
+# add training specific configurations
+parser.add_argument("--training.lr", type = float, default = 0.0005)
+parser.add_argument("--training.criterion", type=str, default="triplet_cos")
+parser = args_per_criterion(parser) # adds parameters of each defined criterion in `args_per_criterion`
 
 cfg = Bunch(parser.parse_args()) # `parse_args()` returns dictionary of args
 trainer_cfg = Bunch(cfg.trainer)
+training_cfg = Bunch(cfg.training)
+model_cfg = Bunch(cfg.model)
 
 
 # define activation
-if cfg.act == "relu":
-	cfg.act = nn.ReLU
-elif cfg.act == "gelu":
-	cfg.act = nn.GELU
+model_act: str = model_cfg.act
+if model_act == "relu":
+	model_cfg.act = nn.ReLU
+elif model_act == "gelu":
+	model_cfg.act = nn.GELU
 else:
-	print(f"your activation: {cfg.act} is not defined")
+	print(f"your activation: {model_act} is not defined")
 	raise 
 
 # define criterion
-if cfg.criterion == "triplet_cos":
-	cfg.criterion = TripletLoss(margin=1)
-elif cfg.criterion == "triplet_eucl":
-	cfg.criterion = nn.TripletMarginLoss()
-elif cfg.criterion == "quad_metric":
-	cfg.criterion = QuadrupletLoss(margin_alpha=0.1, margin_beta=0.01) 
+criterion_name, criterion_metric = training_cfg.criterion.split('_')
+if criterion_name == "triplet":
+	if criterion_metric == "cos":
+		training_cfg.criterion = TripletLoss() # cosine does NOT need margin
+	elif criterion.metric == "eucl":
+		margin = training_cfg.triplet.margin
+		training_cfg.criterion = nn.TripletMarginLoss(margin=margin)
+	else:
+		print(f"Triplet loss with specified metric of {criterion_metric} is NOT defined")
+		raise
+	
+elif criterion_name == "quad":
+	if criterion_metric == "learnedmetric":
+		margin_alpha = cfg.training.quadruplet.margin_alpha
+		margin_beta = cfg.training.quadruplet.margin_beta
+		cfg.training.criterion = QuadrupletLoss(margin_alpha=margin_alpha, margin_beta=margin_beta) 
+	else:
+		print(f"Triplet loss with specified metric of {criterion_metric} is NOT defined")
+		raise
 
-net = SiameseNetwork(cfg).cuda() # init model on gpu
+net = SiameseNetwork(model_cfg).cuda() # init model on gpu
 train_datamodule = DeepSORTModule(cfg.training_dir, cfg.train_batch_size) # init training dataloader
 
 
