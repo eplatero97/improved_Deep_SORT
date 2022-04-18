@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from pytorch_lightning.core.lightning import LightningModule
+import torch.nn.functional as F
 
 # block operations
 class BasicBlock(LightningModule):
@@ -82,8 +83,11 @@ class ReID_Architectures(LightningModule):
               input is expected to be of dim: [batch_size,3,128,64].
               output shape will be of dim: [batch_size, 128]
         """
-        bb1 = BasicBlock(3,32,3,1,1,act=nn.ELU)
-        bb2 = BasicBlock(32,32,3,1,1,act=nn.ELU)
+        # define model parameters
+        act: nn.modules.activation = self.act
+
+        bb1 = BasicBlock(3,32,3,1,1,act=act)
+        bb2 = BasicBlock(32,32,3,1,1,act=act)
         mp = nn.MaxPool2d(3,2,padding=1)
         conv = nn.Sequential(
             bb1,

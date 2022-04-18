@@ -31,24 +31,31 @@ Get training data
 parser = LightningArgumentParser()
 
 parser.add_lightning_class_args(Trainer, "trainer") # add trainer args
-parser.add_argument("--training_dir", type = str, default = "/media/ADAS1/MARS/bbox_train/bbox_train/")
-parser.add_argument("--testing_dir", type = str, default = "/media/ADAS1/MARS/bbox_test/bbox_test/")
-parser.add_argument("--train_batch_size", type = int, default = 128)
+parser.add_argument("--data.training_dir", type = str, default = "/media/ADAS1/MARS/bbox_train/bbox_train/")
+parser.add_argument("--data.testing_dir", type = str, default = "/media/ADAS1/MARS/bbox_test/bbox_test/")
 parser = SiameseNetwork.add_model_specific_args(parser) # add model specific parameters
 # add training specific configurations
+parser.add_argument("--training.batch_size", type = int, default = 128)
 parser.add_argument("--training.lr", type = float, default = 0.0005)
 parser.add_argument("--training.criterion", type=str, default="triplet_cos")
 parser = args_per_criterion(parser) # adds parameters of each defined criterion in `args_per_criterion`
 
 cfg = Bunch(parser.parse_args()) # `parse_args()` returns dictionary of args
-trainer_cfg = Bunch(cfg.trainer)
-training_cfg = Bunch(cfg.training)
-model_cfg = Bunch(cfg.model)
+cfg.data = Bunch(cfg.data)
+cfg.trainer = Bunch(cfg.trainer)
+cfg.training = Bunch(cfg.training)
+cfg.model = Bunch(cfg.model)
+
+trainer_cfg = cfg.trainer
+training_cfg = cfg.training
+model_cfg = cfg.model
 
 
 # define activation
 model_act: str = model_cfg.act
-if model_act == "relu":
+if model_act == "elu":
+	model_cfg.act = nn.ELU
+elif model_act == "relu":
 	model_cfg.act = nn.ReLU
 elif model_act == "gelu":
 	model_cfg.act = nn.GELU
@@ -77,8 +84,12 @@ elif criterion_name == "quad":
 		print(f"Triplet loss with specified metric of {criterion_metric} is NOT defined")
 		raise
 
-net = SiameseNetwork(model_cfg).cuda() # init model on gpu
-train_datamodule = DeepSORTModule(cfg.training_dir, cfg.train_batch_size) # init training dataloader
+# print configurations
+#print(f"Configurations: \n{vars(cfg)}")
+#print(f"model configs: {vars(cfg.model)}")
+
+net = SiameseNetwork(cfg).cuda() # init model on gpu
+train_datamodule = DeepSORTModule(cfg.data.training_dir, cfg.training.batch_size, cfg.model.arch_version) # init training dataloader
 
 
 # create model checkpoint every 20 epochs

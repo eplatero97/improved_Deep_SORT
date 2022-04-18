@@ -25,6 +25,7 @@ using below blur is really slow to perform on cpu.
 As such, authors move it to the forward part of the model
 to perform operation on gpu 
 """
+# need to generalize below
 class get_gaussian_mask:
     def __init__(self, dim0 = 256, dim1 = 128, cuda: bool = False):
         
@@ -118,20 +119,22 @@ class SiameseNetwork(ReID_Architectures):
         self.use_dropout: bool = cfg.model.use_dropout
         self.lr: float = cfg.training.lr
         self.criterion: nn.modules.loss = cfg.training.criterion
-        self.criterion_name: str = type(cfg.criterion).__name__
+        self.criterion_name: str = type(cfg.training.criterion).__name__
         self.act: nn.modules.activation = cfg.model.act
         self.blur: bool = cfg.model.blur
-        if self.blur:
-            self.gaussian_mask = get_gaussian_mask(cuda = True)
 
         # define metric network
         if self.criterion_name == "QuadrupletLoss":
             self.metric_network = MetricNetwork(1024)
 
         # initiate model
-        if cfg.arch_version == "v0":
+        if cfg.model.arch_version == "v0":
+            if self.blur:
+                self.gaussian_mask = get_gaussian_mask(dim0 = 128, dim1=64,cuda = True)
             self.init_archv0()
-        elif cfg.arch_version == "v1":
+        elif cfg.model.arch_version == "v1":
+            if self.blur:
+                self.gaussian_mask = get_gaussian_mask(dim0=256, dim1=128, cuda=True)
             self.init_archv1()
         else:
             print(f"Specified version is NOT defined")
@@ -167,11 +170,11 @@ class SiameseNetwork(ReID_Architectures):
             triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
             self.log(f"train/{self.criterion_name}",  triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
             return triplet_loss
-		elif self.criterion_name == "QuadrupletLoss":
+        elif self.criterion_name == "QuadrupletLoss":
             # get anchor, positive, negative and negative2 embeddings
             anchor, positive, negative, negative2 = batch
             anchor, positive, negative, negative2 = anchor.cuda(), positive.cuda() , negative.cuda(), negative2.cuda()
-    
+
             # Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
             if self.blur:
                 anchor, positive, negative, negative2 = anchor*gaussian_mask, positive*gaussian_mask, negative*gaussian_mask, negative2*gaussian_mask
@@ -191,16 +194,12 @@ class SiameseNetwork(ReID_Architectures):
     def configure_optimizers(self):
         optim.Adam(self.parameters(), lr = self.lr)
 
-    def configure_criterions(self):
-        if type(self.criterion) == str:
-            criterions = self.criterion.split('+')
-
 
 
 
 # define Deep SORT dataloader
 class DeepSORTModule(pl.LightningDataModule):
-	def __init__(self, data_path: str = "path/to/dir", batch_size: int = 32):
+	def __init__(self, data_path: str = "path/to/dir", batch_size: int = 32, arch_version="v0"):
 		"""Deep SORT Data Module
 
         Args:
@@ -211,7 +210,7 @@ class DeepSORTModule(pl.LightningDataModule):
 		self.root = data_path
 		self.batch_size = batch_size
 		self.transforms = transforms.Compose([
-										transforms.Resize((256,128)),
+										transforms.Resize((128,64)) if arch_version == "v0" else transforms.Resize((256,128)),
 										transforms.ColorJitter(hue=.05, saturation=.05),
 										transforms.RandomHorizontalFlip(),
 										transforms.RandomRotation(20, resample=PIL.Image.BILINEAR),
