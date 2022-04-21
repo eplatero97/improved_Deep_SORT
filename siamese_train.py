@@ -1,5 +1,5 @@
 #import torchvision.datasets as dset
-#from torchvision import transforms
+from torchvision import transforms as T 
 from torch.utils.data import DataLoader
 import PIL.ImageOps    
 from siamese_dataloader import *
@@ -15,8 +15,10 @@ from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 from torch import nn
 from criterions import * # imports all defined criterions
+from callbacks import * # MyPrintingCallback
 import wandb
 from loguru import logger 
+from argparse import Namespace
 seed_everything(42, workers=True)
 
 # turn dictionary into namespace object
@@ -40,12 +42,21 @@ parser.add_argument("--training.lr", type = float, default = 0.0005)
 parser.add_argument("--training.criterion", type=str, default="triplet_cos")
 parser = args_per_criterion(parser) # adds parameters of each defined criterion in `args_per_criterion`
 
-cfg = Bunch(parser.parse_args()) # `parse_args()` returns dictionary of args
-cfg.data = Bunch(cfg.data)
-cfg.trainer = Bunch(cfg.trainer)
-cfg.training = Bunch(cfg.training)
-cfg.model = Bunch(cfg.model)
+# extract dictionary arguments
+args = parser.parse_args() # type: dict
+data = args["data"] # type: dict
+trainer = args["trainer"] # type: dict
+training = args["training"] # type: dict
+model = args["model"] # type: dict
 
+# convert dictionary arguments into namespaces
+cfg = Namespace(**args)
+cfg.data = Namespace(**data)
+cfg.trainer = Namespace(**trainer)
+cfg.training = Namespace(**training)
+cfg.model = Namespace(**model)
+
+# unpack nested Namespace cfgs
 trainer_cfg = cfg.trainer
 training_cfg = cfg.training
 model_cfg = cfg.model
@@ -84,12 +95,20 @@ elif criterion_name == "quad":
 		print(f"Triplet loss with specified metric of {criterion_metric} is NOT defined")
 		raise
 
-# print configurations
-#print(f"Configurations: \n{vars(cfg)}")
-#print(f"model configs: {vars(cfg.model)}")
 
-net = SiameseNetwork(cfg).cuda() # init model on gpu
-train_datamodule = DeepSORTModule(cfg.data.training_dir, cfg.training.batch_size, cfg.model.arch_version) # init training dataloader
+# init model on gpu
+net = SiameseNetwork(cfg).cuda() 
+
+# define input transformations and then create datamodule
+transforms = T.Compose([
+		T.Resize((128,64)) if cfg.model.arch_version == "v0" else T.Resize((256,128)),
+		T.ColorJitter(hue=.05, saturation=.05),
+		T.RandomHorizontalFlip(),
+		T.RandomRotation(20, resample=PIL.Image.BILINEAR),
+		T.ToTensor()
+		# get_gaussian_mask()
+		])
+train_datamodule = DeepSORTModule(cfg.data.training_dir, cfg.training.batch_size, transforms) # init training dataloader
 
 
 # create model checkpoint every 20 epochs
@@ -98,22 +117,6 @@ checkpoint_callback = ModelCheckpoint(
     dirpath = trainer_cfg.default_root_dir,
     filename="Deep-SORT-{epoch:02d}-{val_loss:.2f}"
 )
-
-
-# create custom calls during training
-class MyPrintingCallback(Callback):  
-  
-	def on_init_start(self, trainer):  
-		print("initializing `Trainer()` object")  
-
-	def on_init_end(self, trainer):  
-		print('`Trainer()` has been initialized')
-		print("Begin Training")  
-
-	def on_train_end(self, trainer, pl_module):  
-		print('Training has Finished') 
-
-
 
 # init wandb and pass configurations to wandb
 wandb_logger = WandbLogger(project="smart-bus", name = "deepsort-nvidiaai", log_model = "all")

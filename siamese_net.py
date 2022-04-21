@@ -27,11 +27,11 @@ to perform operation on gpu
 """
 # need to generalize below
 class get_gaussian_mask:
-    def __init__(self, dim0 = 256, dim1 = 128, cuda: bool = False):
+    def __init__(self, dim0 = 256j, dim1 = 128j, cuda: bool = False):
         
         #128 is image size
         # We will be using 256x128 patch instead of original 128x128 path because we are using for pedestrain with 1:2 AR.
-        x, y = np.mgrid[0:1.0:256j, 0:1.0:128j] #128 is input size.
+        x, y = np.mgrid[0:1.0:dim0, 0:1.0:dim1] #128 is input size.
         xy = np.column_stack([x.flat, y.flat])
         mu = np.array([0.5,0.5])
         sigma = np.array([0.22,0.22])
@@ -130,11 +130,11 @@ class SiameseNetwork(ReID_Architectures):
         # initiate model
         if cfg.model.arch_version == "v0":
             if self.blur:
-                self.gaussian_mask = get_gaussian_mask(dim0 = 128, dim1=64,cuda = True)
+                self.gaussian_mask = get_gaussian_mask(dim0 = 128j, dim1=64j,cuda = True)
             self.init_archv0()
         elif cfg.model.arch_version == "v1":
             if self.blur:
-                self.gaussian_mask = get_gaussian_mask(dim0=256, dim1=128, cuda=True)
+                self.gaussian_mask = get_gaussian_mask(dim0=256j, dim1=128j, cuda=True)
             self.init_archv1()
         else:
             print(f"Specified version is NOT defined")
@@ -192,14 +192,14 @@ class SiameseNetwork(ReID_Architectures):
             return quadruplet_loss
 
     def configure_optimizers(self):
-        optim.Adam(self.parameters(), lr = self.lr)
+        return optim.Adam(self.parameters(), lr = self.lr)
 
 
 
 
 # define Deep SORT dataloader
 class DeepSORTModule(pl.LightningDataModule):
-	def __init__(self, data_path: str = "path/to/dir", batch_size: int = 32, arch_version="v0"):
+	def __init__(self, data_path: str = "path/to/dir", batch_size: int = 32, transforms = None):
 		"""Deep SORT Data Module
 
         Args:
@@ -209,14 +209,7 @@ class DeepSORTModule(pl.LightningDataModule):
 		super().__init__()
 		self.root = data_path
 		self.batch_size = batch_size
-		self.transforms = transforms.Compose([
-										transforms.Resize((128,64)) if arch_version == "v0" else transforms.Resize((256,128)),
-										transforms.ColorJitter(hue=.05, saturation=.05),
-										transforms.RandomHorizontalFlip(),
-										transforms.RandomRotation(20, resample=PIL.Image.BILINEAR),
-										transforms.ToTensor()
-                                        # get_gaussian_mask()
-										])
+		self.transforms = transforms
 
 	def setup(self, stage: Optional[str] = None):
 		folder_dataset = dset.ImageFolder(root=self.root)
