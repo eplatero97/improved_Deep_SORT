@@ -18,7 +18,7 @@ from criterions import * # imports all defined criterions
 from callbacks import * # MyPrintingCallback
 import wandb
 from loguru import logger 
-from argparse import Namespace
+from utils import * # wrap_namespace (turns nested dictionary into namespace)
 seed_everything(42, workers=True)
 
 # turn dictionary into namespace object
@@ -44,17 +44,20 @@ parser = args_per_criterion(parser) # adds parameters of each defined criterion 
 
 # extract dictionary arguments
 args = parser.parse_args() # type: dict
-data = args["data"] # type: dict
-trainer = args["trainer"] # type: dict
-training = args["training"] # type: dict
-model = args["model"] # type: dict
 
-# convert dictionary arguments into namespaces
-cfg = Namespace(**args)
-cfg.data = Namespace(**data)
-cfg.trainer = Namespace(**trainer)
-cfg.training = Namespace(**training)
-cfg.model = Namespace(**model)
+# load default parameters
+cfg = YamlParser(config_file="./cfgs/default_cfg.yml")
+
+# load defined parameters 
+cfg.merge_from_dict(args)
+
+# init wandb and pass configurations to wandb
+wandb_logger = WandbLogger(project="smart-bus", name = "deepsort-nvidiaai", log_model = "all")
+wandb_logger.experiment.config.update(cfg)
+
+# turn nested dictionary into namespace
+cfg = wrap_namespace(cfg)
+
 
 # unpack nested Namespace cfgs
 trainer_cfg = cfg.trainer
@@ -86,10 +89,10 @@ if criterion_name == "triplet":
 		print(f"Triplet loss with specified metric of {criterion_metric} is NOT defined")
 		raise
 	
-elif criterion_name == "quad":
+elif criterion_name == "quadruplet":
 	if criterion_metric == "learnedmetric":
 		margin_alpha = cfg.training.quadruplet.margin_alpha
-		margin_beta = cfg.training.quadruplet.margin_beta
+		margin_beta = cfg.training.quadruplet.margin_beta	
 		cfg.training.criterion = QuadrupletLoss(margin_alpha=margin_alpha, margin_beta=margin_beta) 
 	else:
 		print(f"Triplet loss with specified metric of {criterion_metric} is NOT defined")
@@ -99,7 +102,7 @@ elif criterion_name == "quad":
 # init model on gpu
 net = SiameseNetwork(cfg).cuda() 
 
-# define input transformations and then create datamodule
+# define input transformations and then create dataloader
 transforms = T.Compose([
 		T.Resize((128,64)) if cfg.model.arch_version == "v0" else T.Resize((256,128)),
 		T.ColorJitter(hue=.05, saturation=.05),
@@ -108,23 +111,20 @@ transforms = T.Compose([
 		T.ToTensor()
 		# get_gaussian_mask()
 		])
-train_datamodule = DeepSORTModule(cfg.data.training_dir, cfg.training.batch_size, transforms) # init training dataloader
+train_datamodule = DeepSORTModule(cfg.data.training_dir, cfg.training.batch_size, transforms, criterion_name) # init training dataloader
 
 
 # create model checkpoint every 20 epochs
 checkpoint_callback = ModelCheckpoint(
-    every_n_epochs = 20,
+    every_n_epochs = 1,
     dirpath = trainer_cfg.default_root_dir,
     filename="Deep-SORT-{epoch:02d}-{val_loss:.2f}"
 )
 
-# init wandb and pass configurations to wandb
-wandb_logger = WandbLogger(project="smart-bus", name = "deepsort-nvidiaai", log_model = "all")
-wandb_logger.experiment.config.update(cfg)
+
 
 # add all custom trainer configurations
 trainer_cfg.callbacks = [checkpoint_callback, MyPrintingCallback()]
-trainer_cfg.profiler = "simple"
 trainer_cfg.logger = wandb_logger
 
 # init Trainer with configuration parameters

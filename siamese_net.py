@@ -16,7 +16,7 @@ from pytorch_lightning.core.lightning import LightningModule
 from scipy.stats import multivariate_normal
 import pytorch_lightning as pl
 from typing import Optional
-from siamese_dataloader import SiameseTriplet
+from siamese_dataloader import SiameseTriplet, SiameseQuadruplet
 from reid_architectures import *
 
 
@@ -167,7 +167,7 @@ class SiameseNetwork(ReID_Architectures):
                 anchor, positive, negative = self.gaussian_mask(anchor), self.gaussian_mask(positive), self.gaussian_mask(negative)
             
             anchor_out, positive_out, negative_out = self(anchor, positive, negative)
-            triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss (based on cosine simality) on the output feature maps
+            triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss on the output feature maps
             self.log(f"train/{self.criterion_name}",  triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
             return triplet_loss
         elif self.criterion_name == "QuadrupletLoss":
@@ -177,17 +177,19 @@ class SiameseNetwork(ReID_Architectures):
 
             # Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
             if self.blur:
-                anchor, positive, negative, negative2 = anchor*gaussian_mask, positive*gaussian_mask, negative*gaussian_mask, negative2*gaussian_mask
+                anchor, positive, negative, negative2 = self.gaussian_mask(anchor), self.gaussian_mask(positive), gaussian_mask(negative), gaussian_mask(negative2)
 
             anchor_out, positive_out, negative_out, negative2_out = self(anchor, positive, negative, negative2) # Model forward propagation
+            # concatenate outputs
             anchor_positive_out = torch.cat([anchor_out,positive_out],dim=-1)
             anchor_negative_out = torch.cat([anchor_out,negative_out],dim=-1)
             negative_negative2_out = torch.cat([negative_out,negative2_out],dim=-1)
+            # feed to learned metric network
             ap_dist = self.metric_network(anchor_positive_out)
             an_dist = self.metric_network(anchor_negative_out)
             nn_dist = self.metric_network(negative_negative2_out)
 
-            quadruplet_loss: torch.float32 = criterion(ap_dist, an_dist, nn_dist) # Compute triplet loss (based on cosine simality) on the output feature maps
+            quadruplet_loss: torch.float32 = criterion(ap_dist, an_dist, nn_dist) # Compute quadruplet loss on the output feature maps
             self.log(f"train/{self.criterion_name}",  quadruplet_loss.item(), logger = True, on_step = True, on_epoch = False)
             return quadruplet_loss
 
@@ -199,25 +201,30 @@ class SiameseNetwork(ReID_Architectures):
 
 # define Deep SORT dataloader
 class DeepSORTModule(pl.LightningDataModule):
-	def __init__(self, data_path: str = "path/to/dir", batch_size: int = 32, transforms = None):
-		"""Deep SORT Data Module
+    def __init__(self, data_path: str = "path/to/dir", batch_size: int = 32, transforms = None, mining = "triplet"):
+        """Deep SORT Data Module
 
         Args:
             data_path: path to training/testing directory
             batch_size: batch size
         """
-		super().__init__()
-		self.root = data_path
-		self.batch_size = batch_size
-		self.transforms = transforms
+        super().__init__()
+        self.root = data_path
+        self.batch_size = batch_size
+        self.transforms = transforms
+        self.mining = mining
 
-	def setup(self, stage: Optional[str] = None):
-		folder_dataset = dset.ImageFolder(root=self.root)
-		self.siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
-											  transform=self.transforms,should_invert=False) # Get dataparser class object
-		
+    def setup(self, stage: Optional[str] = None):
+        folder_dataset = dset.ImageFolder(root=self.root)
+        if self.mining == "triplet":
+            self.siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
+                                                transform=self.transforms,should_invert=False) # Get dataparser class object
+        elif self.mining == "quadruplet":
+            self.siamese_dataset = SiameseQuadruplet(imageFolderDataset=folder_dataset,
+                                                transform=self.transforms,should_invert=False) # Get dataparser class object
+        
 
-	def train_dataloader(self):
-		return DataLoader(self.siamese_dataset,shuffle=True, 
-						  num_workers=4,batch_size=self.batch_size) # PyTorch data parser obeject
+    def train_dataloader(self):
+        return DataLoader(self.siamese_dataset,shuffle=True, 
+                            num_workers=4,batch_size=self.batch_size) # PyTorch data parser obeject
 

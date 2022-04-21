@@ -1,0 +1,163 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.12.11
+    framework: lightning
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    m:
+    - 1: trainer/global_step
+      6:
+      - 3
+    - 1: train/TripletLoss
+      5: 1
+      6:
+      - 1
+    - 1: epoch
+      5: 1
+      6:
+      - 1
+    python_version: 3.6.15
+    start_time: 1650559565
+    t:
+      1:
+      - 1
+      - 9
+      - 41
+      2:
+      - 1
+      - 9
+      - 41
+      3:
+      - 7
+      - 13
+      4: 3.6.15
+      5: 0.12.11
+      8:
+      - 5
+config:
+  desc: null
+  value:
+  - /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial6/config.yaml
+data:
+  desc: null
+  value: 'Namespace(merge_from_dict=<bound method YamlParser.merge_from_dict of {''training_dir'':
+    ''/home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/object-tracking-crops-data/crops'',
+    ''testing_dir'': ''/media/ADAS1/MARS/bbox_test/bbox_test/'', ''merge_from_file'':
+    <bound method YamlParser.merge_from_file of {...}>, ''merge_from_dict'': <bound
+    method YamlParser.merge_from_dict of {...}>}>, merge_from_file=<bound method YamlParser.merge_from_file
+    of {''training_dir'': ''/home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/object-tracking-crops-data/crops'',
+    ''testing_dir'': ''/media/ADAS1/MARS/bbox_test/bbox_test/'', ''merge_from_file'':
+    <bound method YamlParser.merge_from_file of {...}>, ''merge_from_dict'': <bound
+    method YamlParser.merge_from_dict of {...}>}>, testing_dir=''/media/ADAS1/MARS/bbox_test/bbox_test/'',
+    training_dir=''/home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/object-tracking-crops-data/crops'')'
+merge_from_dict:
+  desc: null
+  value: utils.YamlParser.merge_from_dict
+merge_from_file:
+  desc: null
+  value: utils.YamlParser.merge_from_file
+model:
+  desc: null
+  value: 'Namespace(act=<class ''torch.nn.modules.activation.ELU''>, arch_version=''v0'',
+    blur=True, merge_from_dict=<bound method YamlParser.merge_from_dict of {''use_dropout'':
+    False, ''act'': ''elu'', ''blur'': True, ''arch_version'': ''v0'', ''merge_from_file'':
+    <bound method YamlParser.merge_from_file of {...}>, ''merge_from_dict'': <bound
+    method YamlParser.merge_from_dict of {...}>}>, merge_from_file=<bound method YamlParser.merge_from_file
+    of {''use_dropout'': False, ''act'': ''elu'', ''blur'': True, ''arch_version'':
+    ''v0'', ''merge_from_file'': <bound method YamlParser.merge_from_file of {...}>,
+    ''merge_from_dict'': <bound method YamlParser.merge_from_dict of {...}>}>, use_dropout=False)'
+trainer:
+  desc: null
+  value: 'Namespace(accelerator=None, accumulate_grad_batches=None, amp_backend=''native'',
+    amp_level=None, auto_lr_find=False, auto_scale_batch_size=False, auto_select_gpus=False,
+    benchmark=False, callbacks=None, check_val_every_n_epoch=1, checkpoint_callback=None,
+    default_root_dir=''/home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial6'',
+    detect_anomaly=False, deterministic=False, devices=None, enable_checkpointing=True,
+    enable_model_summary=True, enable_progress_bar=True, fast_dev_run=False, flush_logs_every_n_steps=None,
+    gpus=-1, gradient_clip_algorithm=None, gradient_clip_val=None, ipus=None, limit_predict_batches=1.0,
+    limit_test_batches=1.0, limit_train_batches=1.0, limit_val_batches=1.0, log_every_n_steps=100,
+    log_gpu_memory=None, logger=True, max_epochs=2, max_steps=-1, max_time=None, merge_from_dict=<bound
+    method YamlParser.merge_from_dict of {''logger'': True, ''checkpoint_callback'':
+    None, ''enable_checkpointing'': True, ''callbacks'': None, ''default_root_dir'':
+    ''/home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial6'',
+    ''gradient_clip_val'': None, ''gradient_clip_algorithm'': None, ''process_position'':
+    0, ''num_nodes'': 1, ''num_processes'': 1, ''devices'': None, ''gpus'': -1, ''auto_select_gpus'':
+    False, ''tpu_cores'': None, ''ipus'': None, ''log_gpu_memory'': None, ''progress_bar_refresh_rate'':
+    None, ''enable_progress_bar'': True, ''overfit_batches'': 0.0, ''track_grad_norm'':
+    -1, ''check_val_every_n_epoch'': 1, ''fast_dev_run'': False, ''accumulate_grad_batches'':
+    None, ''max_epochs'': 2, ''min_epochs'': None, ''max_steps'': -1, ''min_steps'':
+    None, ''max_time'': None, ''limit_train_batches'': 1.0, ''limit_val_batches'':
+    1.0, ''limit_test_batches'': 1.0, ''limit_predict_batches'': 1.0, ''val_check_interval'':
+    1.0, ''flush_logs_every_n_steps'': None, ''log_every_n_steps'': 100, ''accelerator'':
+    None, ''strategy'': None, ''sync_batchnorm'': False, ''precision'': 32, ''enable_model_summary'':
+    True, ''weights_summary'': ''top'', ''weights_save_path'': None, ''num_sanity_val_steps'':
+    2, ''resume_from_checkpoint'': None, ''profiler'': None, ''benchmark'': False,
+    ''deterministic'': False, ''reload_dataloaders_every_n_epochs'': 0, ''reload_dataloaders_every_epoch'':
+    False, ''auto_lr_find'': False, ''replace_sampler_ddp'': True, ''detect_anomaly'':
+    False, ''auto_scale_batch_size'': False, ''prepare_data_per_node'': None, ''plugins'':
+    None, ''amp_backend'': ''native'', ''amp_level'': None, ''move_metrics_to_cpu'':
+    False, ''multiple_trainloader_mode'': ''max_size_cycle'', ''stochastic_weight_avg'':
+    False, ''terminate_on_nan'': None, ''merge_from_file'': <bound method YamlParser.merge_from_file
+    of {...}>, ''merge_from_dict'': <bound method YamlParser.merge_from_dict of {...}>}>,
+    merge_from_file=<bound method YamlParser.merge_from_file of {''logger'': True,
+    ''checkpoint_callback'': None, ''enable_checkpointing'': True, ''callbacks'':
+    None, ''default_root_dir'': ''/home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial6'',
+    ''gradient_clip_val'': None, ''gradient_clip_algorithm'': None, ''process_position'':
+    0, ''num_nodes'': 1, ''num_processes'': 1, ''devices'': None, ''gpus'': -1, ''auto_select_gpus'':
+    False, ''tpu_cores'': None, ''ipus'': None, ''log_gpu_memory'': None, ''progress_bar_refresh_rate'':
+    None, ''enable_progress_bar'': True, ''overfit_batches'': 0.0, ''track_grad_norm'':
+    -1, ''check_val_every_n_epoch'': 1, ''fast_dev_run'': False, ''accumulate_grad_batches'':
+    None, ''max_epochs'': 2, ''min_epochs'': None, ''max_steps'': -1, ''min_steps'':
+    None, ''max_time'': None, ''limit_train_batches'': 1.0, ''limit_val_batches'':
+    1.0, ''limit_test_batches'': 1.0, ''limit_predict_batches'': 1.0, ''val_check_interval'':
+    1.0, ''flush_logs_every_n_steps'': None, ''log_every_n_steps'': 100, ''accelerator'':
+    None, ''strategy'': None, ''sync_batchnorm'': False, ''precision'': 32, ''enable_model_summary'':
+    True, ''weights_summary'': ''top'', ''weights_save_path'': None, ''num_sanity_val_steps'':
+    2, ''resume_from_checkpoint'': None, ''profiler'': None, ''benchmark'': False,
+    ''deterministic'': False, ''reload_dataloaders_every_n_epochs'': 0, ''reload_dataloaders_every_epoch'':
+    False, ''auto_lr_find'': False, ''replace_sampler_ddp'': True, ''detect_anomaly'':
+    False, ''auto_scale_batch_size'': False, ''prepare_data_per_node'': None, ''plugins'':
+    None, ''amp_backend'': ''native'', ''amp_level'': None, ''move_metrics_to_cpu'':
+    False, ''multiple_trainloader_mode'': ''max_size_cycle'', ''stochastic_weight_avg'':
+    False, ''terminate_on_nan'': None, ''merge_from_file'': <bound method YamlParser.merge_from_file
+    of {...}>, ''merge_from_dict'': <bound method YamlParser.merge_from_dict of {...}>}>,
+    min_epochs=None, min_steps=None, move_metrics_to_cpu=False, multiple_trainloader_mode=''max_size_cycle'',
+    num_nodes=1, num_processes=1, num_sanity_val_steps=2, overfit_batches=0.0, plugins=None,
+    precision=32, prepare_data_per_node=None, process_position=0, profiler=None, progress_bar_refresh_rate=None,
+    reload_dataloaders_every_epoch=False, reload_dataloaders_every_n_epochs=0, replace_sampler_ddp=True,
+    resume_from_checkpoint=None, stochastic_weight_avg=False, strategy=None, sync_batchnorm=False,
+    terminate_on_nan=None, tpu_cores=None, track_grad_norm=-1, val_check_interval=1.0,
+    weights_save_path=None, weights_summary=''top'')'
+training:
+  desc: null
+  value: 'Namespace(batch_size=128, criterion=TripletLoss(), lr=0.0005, merge_from_dict=<bound
+    method YamlParser.merge_from_dict of {''batch_size'': 128, ''lr'': 0.0005, ''criterion'':
+    ''triplet_cos'', ''triplet'': {''margin'': 1.0, ''merge_from_file'': <bound method
+    YamlParser.merge_from_file of {...}>, ''merge_from_dict'': <bound method YamlParser.merge_from_dict
+    of {...}>}, ''quadruplet'': {''margin_alpha'': 0.1, ''margin_beta'': 0.01, ''merge_from_file'':
+    <bound method YamlParser.merge_from_file of {...}>, ''merge_from_dict'': <bound
+    method YamlParser.merge_from_dict of {...}>}, ''merge_from_file'': <bound method
+    YamlParser.merge_from_file of {...}>, ''merge_from_dict'': <bound method YamlParser.merge_from_dict
+    of {...}>}>, merge_from_file=<bound method YamlParser.merge_from_file of {''batch_size'':
+    128, ''lr'': 0.0005, ''criterion'': ''triplet_cos'', ''triplet'': {''margin'':
+    1.0, ''merge_from_file'': <bound method YamlParser.merge_from_file of {...}>,
+    ''merge_from_dict'': <bound method YamlParser.merge_from_dict of {...}>}, ''quadruplet'':
+    {''margin_alpha'': 0.1, ''margin_beta'': 0.01, ''merge_from_file'': <bound method
+    YamlParser.merge_from_file of {...}>, ''merge_from_dict'': <bound method YamlParser.merge_from_dict
+    of {...}>}, ''merge_from_file'': <bound method YamlParser.merge_from_file of {...}>,
+    ''merge_from_dict'': <bound method YamlParser.merge_from_dict of {...}>}>, quadruplet=Namespace(margin_alpha=0.1,
+    margin_beta=0.01, merge_from_dict=<bound method YamlParser.merge_from_dict of
+    {''margin_alpha'': 0.1, ''margin_beta'': 0.01, ''merge_from_file'': <bound method
+    YamlParser.merge_from_file of {...}>, ''merge_from_dict'': <bound method YamlParser.merge_from_dict
+    of {...}>}>, merge_from_file=<bound method YamlParser.merge_from_file of {''margin_alpha'':
+    0.1, ''margin_beta'': 0.01, ''merge_from_file'': <bound method YamlParser.merge_from_file
+    of {...}>, ''merge_from_dict'': <bound method YamlParser.merge_from_dict of {...}>}>),
+    triplet=Namespace(margin=1.0, merge_from_dict=<bound method YamlParser.merge_from_dict
+    of {''margin'': 1.0, ''merge_from_file'': <bound method YamlParser.merge_from_file
+    of {...}>, ''merge_from_dict'': <bound method YamlParser.merge_from_dict of {...}>}>,
+    merge_from_file=<bound method YamlParser.merge_from_file of {''margin'': 1.0,
+    ''merge_from_file'': <bound method YamlParser.merge_from_file of {...}>, ''merge_from_dict'':
+    <bound method YamlParser.merge_from_dict of {...}>}>))'

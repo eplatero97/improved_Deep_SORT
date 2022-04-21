@@ -12,3 +12,4 @@ scikit_learn
 pytorch-lightning
 jsonargparse
 loguru
+easydict
