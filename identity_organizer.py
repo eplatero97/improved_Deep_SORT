@@ -1,6 +1,15 @@
 import os
-import sys
 import shutil
+from argparse import ArgumentParser
+from pathlib import Path
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument("--data_path", type=str, required=True, help="Path to Market-1501 dataset")
+    parser.add_argument("--train_output", type=str, required=False, help="Output path for bounding_box_train identities", default=None)
+    parser.add_argument("--gt_output", type=str, required=False, help="Output path for gt_bbox identities", default=None)
+    args = parser.parse_args()
+    return args
 
 def organize(src: str, dest: str):
     for file in os.listdir(src):
@@ -12,24 +21,18 @@ def organize(src: str, dest: str):
             file_path = os.path.join(src, file)
             shutil.copy(file_path, identity_dir)
 
-if len(sys.argv) != 2:
-    print("Usage: \"python identity_organizer.py <PATH TO MARKET1501>\"")
-    exit()
+args = parse_args()
 
-if os.path.exists(sys.argv[1]):
-    market_dir = sys.argv[1]
-
-elif os.path.exists(os.path.join(os.getcwd, sys.argv[1])):
-    market_dir = os.path.join(os.getcwd, sys.argv[1])
-
+bbox_train_dir = os.path.join(args.data_path, "bounding_box_train")
+gt_bbox_dir = os.path.join(args.data_path, "gt_bbox")
+if args.train_output == None:
+    pt_bbox_train_dir = os.path.join(args.data_path, "bounding_box_train_pt_format")
 else:
-    print("Invalid Path")
-    exit()
-
-bbox_train_dir = os.path.join(market_dir, "bounding_box_train")
-gt_bbox_dir = os.path.join(market_dir, "gt_bbox")
-pt_bbox_train_dir = os.path.join(market_dir, "bounding_box_train_pt_format")
-pt_gt_bbox_dir = os.path.join(market_dir, "gt_bbox_pt_format")
+    pt_bbox_train_dir = args.train_output
+if args.gt_output == None:
+    pt_gt_bbox_dir = os.path.join(args.data_path, "gt_bbox_pt_format")
+else:
+    pt_gt_bbox_dir = args.gt_output
 
 if not os.path.exists(pt_bbox_train_dir):
     os.mkdir(pt_bbox_train_dir)
@@ -39,5 +42,3 @@ if not os.path.exists(pt_gt_bbox_dir):
 
 organize(bbox_train_dir, pt_bbox_train_dir)
 organize(gt_bbox_dir, pt_gt_bbox_dir)
-
-
