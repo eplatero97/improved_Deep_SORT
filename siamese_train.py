@@ -37,10 +37,13 @@ parser.add_argument("--data.training_dir", type = str, default = "/media/ADAS1/M
 parser.add_argument("--data.testing_dir", type = str, default = "/media/ADAS1/MARS/bbox_test/bbox_test/")
 parser = SiameseNetwork.add_model_specific_args(parser) # add model specific parameters
 # add training specific configurations
+parser.add_argument("--training.dataset", type=str, default="market1501")
 parser.add_argument("--training.batch_size", type = int, default = 128)
 parser.add_argument("--training.lr", type = float, default = 0.0005)
 parser.add_argument("--training.criterion", type=str, default="triplet_cos")
 parser = args_per_criterion(parser) # adds parameters of each defined criterion in `args_per_criterion`
+parser.add_argument("--validation.dataset", type=str, default="mot17half")
+parser.add_argument("--testing.dataset", type=str, default="mot17half")
 
 # extract dictionary arguments
 args = parser.parse_args() # type: dict

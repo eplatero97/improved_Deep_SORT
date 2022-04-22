@@ -3,6 +3,7 @@ data:
   testing_dir: /media/ADAS1/MARS/bbox_test/bbox_test/
 
 training:
+  dataset: market1501
   batch_size: 128
   lr: 0.0005
   criterion: triplet_cos
@@ -11,6 +12,21 @@ training:
   quadruplet:
     margin_alpha: .1
     margin_beta: .01
+
+validation:
+  dataset: mot17half
+
+testing:
+  dataset: mot17half
+
+metrics:
+  # metric: tripletacc
+  tripletacc:
+    p: 2.0
+    dist_thresh: 0.2
+  quadrupletacc:
+    p: 2.0
+    dist_thresh: 0.2
 
 model:
   use_dropout: False

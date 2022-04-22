@@ -18,6 +18,7 @@ import pytorch_lightning as pl
 from typing import Optional
 from siamese_dataloader import SiameseTriplet, SiameseQuadruplet
 from reid_architectures import *
+from metrics import * # TripletAcc
 
 
 """
@@ -126,6 +127,13 @@ class SiameseNetwork(ReID_Architectures):
         # define metric network
         if self.criterion_name == "QuadrupletLoss":
             self.metric_network = MetricNetwork(1024)
+            p = cfg.metrics.quadrupletacc.p
+            dist_thresh = cfg.metrics.quadrupletacc.dist_thresh
+            self.metric = QuadrupletAcc(p=p, dist_thresh=dist_thresh)
+        elif self.criterion_name == "TripletLoss":
+            p = cfg.metrics.tripletacc.p
+            dist_thresh = cfg.metrics.tripletacc.dist_thresh
+            self.metric = TripletAcc(p=p, dist_thresh=dist_thresh)
 
         # initiate model
         if cfg.model.arch_version == "v0":
