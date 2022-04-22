@@ -56,14 +56,6 @@ class get_gaussian_mask:
         return self.mask * img 
 
 
-
-
-
-# criterion = QuadrupletLoss(margin_alpha=0.1, margin_beta=0.01) criterion is now defined in `siamese_train.py`
-
-
-
-
 class MetricNetwork(LightningModule):
     def apply_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -129,11 +121,11 @@ class SiameseNetwork(ReID_Architectures):
             self.metric_network = MetricNetwork(1024)
             p = cfg.metrics.quadrupletacc.p
             dist_thresh = cfg.metrics.quadrupletacc.dist_thresh
-            self.metric = QuadrupletAcc(p=p, dist_thresh=dist_thresh)
+            self.acc = QuadrupletAcc(p=p, dist_thresh=dist_thresh)
         elif self.criterion_name == "TripletLoss":
             p = cfg.metrics.tripletacc.p
             dist_thresh = cfg.metrics.tripletacc.dist_thresh
-            self.metric = TripletAcc(p=p, dist_thresh=dist_thresh)
+            self.acc = TripletAcc(p=p, dist_thresh=dist_thresh)
 
         # initiate model
         if cfg.model.arch_version == "v0":
@@ -174,9 +166,15 @@ class SiameseNetwork(ReID_Architectures):
             if self.blur:
                 anchor, positive, negative = self.gaussian_mask(anchor), self.gaussian_mask(positive), self.gaussian_mask(negative)
             
+            # produce embeddings
             anchor_out, positive_out, negative_out = self(anchor, positive, negative)
+            # record triplet loss 
             triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss on the output feature maps
-            self.log(f"train/{self.criterion_name}",  triplet_loss.item(), logger = True, on_step = True, on_epoch = False)
+            self.log(f"train/{self.criterion_name}",  triplet_loss.item(), logger=True, on_step=True, on_epoch=False)
+            # record triplet accuracy
+            acc = self.acc(anchor, positive, negative).item()
+            self.log("train/acc", acc, logger=True, on_step=True, on_epoch=False)
+            # return triplet loss
             return triplet_loss
         elif self.criterion_name == "QuadrupletLoss":
             # get anchor, positive, negative and negative2 embeddings
@@ -196,9 +194,12 @@ class SiameseNetwork(ReID_Architectures):
             ap_dist = self.metric_network(anchor_positive_out)
             an_dist = self.metric_network(anchor_negative_out)
             nn_dist = self.metric_network(negative_negative2_out)
-
+            # record quadruplet loss
             quadruplet_loss: torch.float32 = criterion(ap_dist, an_dist, nn_dist) # Compute quadruplet loss on the output feature maps
             self.log(f"train/{self.criterion_name}",  quadruplet_loss.item(), logger = True, on_step = True, on_epoch = False)
+            # record quadruplet accuracy
+            # acc = self.acc(anchor, positive, negative, ).item()
+            # self.log("train/acc", acc, logger=True, on_step=True, on_epoch=False)
             return quadruplet_loss
 
     def configure_optimizers(self):

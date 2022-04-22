@@ -1,4 +1,6 @@
 import torch
+from torch import linalg as LA
+
 # metric for Triplet Accuracy
 class TripletAcc:
     @staticmethod
@@ -19,21 +21,24 @@ class TripletAcc:
         :param dist_thresh: determines whether distance is enough to classify as same or different class of person
         """
         self.dist_thresh = dist_thresh
-        self.dist = lambda x,y: (x-y).pow(p).sum().pow(1/p)
+        self.dist = lambda x,y: LA.vector_norm(x-y, ord=p, dim=1)
     
     @torch.no_grad()
     def __call__(self, anchor: torch.FloatTensor, 
                        positive: torch.FloatTensor, 
                        negative: torch.FloatTensor) -> float:
+        # anchor.shape == positive.shape == negative.shape == (batch_size, feats)
+        batch_size = anchor.shape[0]
+
         a2p_dist = self.dist(anchor, positive)
         a2n_dist = self.dist(anchor, negative)
         p2n_dist = self.dist(positive, negative)
 
         acc = 0
-        acc += 1 if a2p_dist <= self.dist_thresh else 0
-        acc += 1 if a2n_dist > self.dist_thresh else 0
-        acc += 1 if p2n_dist > self.dist_thresh else 0
-        acc_pct = acc / 3 # accuracy percentage
+        acc += (a2p_dist <= self.dist_thresh).sum()
+        acc += (a2n_dist > self.dist_thresh).sum()
+        acc += (p2n_dist > self.dist_thresh).sum()
+        acc_pct = acc / (3*batch_size) # mean accuracy percentage
         return acc_pct
 
 
@@ -56,7 +61,7 @@ class QuadrupletAcc:
         :param dist_thresh: determines whether distance is enough to classify as same or different class of person
         """
         self.dist_thresh = dist_thresh
-        self.dist = lambda x,y: (x-y).pow(p).sum().pow(1/p)
+        self.dist = lambda x,y: LA.vector_norm(x-y, ord=p, dim=1)
         self.triplet = TripletAcc(p, dist_thresh)
     
     @torch.no_grad()
@@ -65,15 +70,27 @@ class QuadrupletAcc:
                        negative: torch.FloatTensor,
                        negative2: torch.FloatTensor) -> float:
         
-        tripletacc = self.triplet(anchor, positive, negative)
+        batch_size = anchor.shape[0]
         a2n2_dist = self.dist(anchor, negative2)
         p2n2_dist = self.dist(positive, negative2)
         n2n2_dist = self.dist(negative, negative2)
 
         acc = 0
-        acc += 1 if a2n2_dist > self.dist_thresh else 0
-        acc += 1 if p2n2_dist > self.dist_thresh else 0
-        acc += 1 if n2n2_dist > self.dist_thresh else 0
-        acc_pct = acc / 3 # accuracy percentage
-        return acc_pct + tripletacc
+        tripletacc = self.triplet(anchor, positive, negative)
+        acc += tripletacc / 3 # div by 3 to account for other 3 combinations of quadruplet loss
+        acc += (a2n2_dist > self.dist_thresh).sum()
+        acc += (p2n2_dist > self.dist_thresh).sum()
+        acc += (n2n2_dist > self.dist_thresh).sum()
+        acc_pct = acc / (6*batch_size) # accuracy percentage
+        return acc_pct 
 
+
+if __name__ == "__main__":
+    a = torch.randn(3, 256)
+    p = torch.randn(3, 256)
+    n = torch.randn(3, 256)
+    n2 = torch.randn(3, 256)
+
+    acc = QuadrupletAcc(p=2.0, dist_thresh=0.2)
+    out = acc(a,p,n,n2)
+    # print(out)
