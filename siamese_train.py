@@ -32,10 +32,13 @@ Get training data
 """
 
 parser = LightningArgumentParser()
-
 parser.add_lightning_class_args(Trainer, "trainer") # add trainer args
-parser.add_argument("--data.training_dir", type = str, default = "/media/ADAS1/MARS/bbox_train/bbox_train/")
-parser.add_argument("--data.testing_dir", type = str, default = "/media/ADAS1/MARS/bbox_test/bbox_test/")
+parser.add_argument("--env.exp_name", type = str, default = "experiment_name", help="experiment name")
+parser.add_argument("--training.training_dir", type = str, default = "/media/ADAS1/MARS/bbox_train/bbox_train/")
+parser.add_argument("--validation.validation_dir", type = str, default = "/media/ADAS1/MARS/bbox_test/bbox_test/")
+parser.add_argument("--validation.batch_size", type = int, default = 256)
+parser.add_argument("--testing.mot_testing_dir", type = str, default = "/media/train_mot/")
+parser.add_argument("--testing.batch_size", type = int, default = 256)
 parser = SiameseNetwork.add_model_specific_args(parser) # add model specific parameters
 # add training specific configurations
 parser.add_argument("--training.dataset", type=str, default="market1501")
@@ -56,7 +59,7 @@ cfg = YamlParser(config_file="./cfgs/default_cfg.yml")
 cfg.merge_from_dict(args)
 
 # init wandb and pass configurations to wandb
-wandb_logger = WandbLogger(project="smart-bus", name = "deepsort-nvidiaai", log_model = "all")
+wandb_logger = WandbLogger(project="smart-bus", name = cfg["env"]["exp_name"], log_model = "all")
 wandb_logger.experiment.config.update(cfg)
 
 # turn nested dictionary into namespace
@@ -86,13 +89,20 @@ criterion_name, criterion_metric = training_cfg.criterion.split('_')
 if criterion_name == "triplet":
 	if criterion_metric == "cos":
 		training_cfg.criterion = TripletLoss() # cosine does NOT need margin
-	elif criterion.metric == "eucl":
+	elif criterion_metric == "eucl":
 		margin = training_cfg.triplet.margin
 		training_cfg.criterion = nn.TripletMarginLoss(margin=margin)
+	elif criterion_metric == "comb":
+		margin = training_cfg.triplet.margin
+		loss0 = TripletLoss()
+		loss1 = nn.TripletMarginLoss(margin=margin)
+		losses = [loss0, loss1]
+		weights = training_cfg.kkt_weights
+		training_cfg.criterion = CombinedTripletLosses(losses, weights)
+
 	else:
 		print(f"Triplet loss with specified metric of {criterion_metric} is NOT defined")
 		raise
-	
 elif criterion_name == "quadruplet":
 	if criterion_metric == "learnedmetric":
 		margin_alpha = cfg.training.quadruplet.margin_alpha
@@ -117,13 +127,16 @@ transforms = T.Compose([
 		])
 
 # define train dataloader
-train_datamodule = DeepSORTModule(cfg.data.training_dir, cfg.training.batch_size, transforms, criterion_name) 
+train_datamodule = DeepSORTModule(cfg.training.training_dir, cfg.training.batch_size, transforms, criterion_name) 
 # define validation dataloader
-val_datamodule = DeepSORTModule(cfg.data.val_dir, cfg.validation.bath_size, transforms, criterion_name)
+val_datamodule = DeepSORTModule(cfg.validation.validation_dir, cfg.validation.batch_size, transforms, criterion_name)
 # define testing dataloader
-mot_dirs = list(Path(cfg.data.mot_testing_dir).rglob("crops_gt"))
-test_datamodule = DeepSORTModule(mot_dirs)
+mot_dirs = list(Path(cfg.testing.mot_testing_dir).rglob("crops_gt"))
+test_datamodule = DeepSORTModule(mot_dirs, cfg.testing.batch_size, transforms, criterion_name)
 
+print(f"train_datamodule: {train_datamodule}")
+print(f"val_datamodule: {val_datamodule}")
+print(f"test_datamodule: {test_datamodule}")
 
 # create model checkpoint every epoch
 checkpoint_callback = ModelCheckpoint(

@@ -214,7 +214,15 @@ class SiameseNetwork(ReID_Architectures):
 
 # define Deep SORT dataloader
 class DeepSORTModule(pl.LightningDataModule):
-    def __init__(self, data_path: Union[str,list] = "path/to/dir", batch_size: int = 32, transforms = None, mining = "triplet"):
+    def __init__(self, 
+                 training_path: Union[str,list] = "path/to/dir", 
+                 validation_path: Union[str,list] = "path/to/dir", 
+                 testing_path: Union[str,list] = "path/to/dir", 
+                 training_batch_size: int = 32, 
+                 validation_batch_size: int = 32, 
+                 testing_batch_size: int = 32, 
+                 transforms = None, 
+                 mining = "triplet"):
         """Deep SORT Data Module
 
         Args:
@@ -222,26 +230,53 @@ class DeepSORTModule(pl.LightningDataModule):
             batch_size: batch size
         """
         super().__init__()
-        self.root = data_path
-        self.batch_size = batch_size
+        self.training_path = training_path
+        self.validation_path = validation_path
+        self.testing_path = testing_path
+        self.training_batch_size = training_batch_size
+        self.validation_batch_size = validation_batch_size
+        self.testing_batch_size = testing_batch_size
         self.transforms = transforms
         self.mining = mining
 
     def setup(self, stage: Optional[str] = None):
-        if type(self.root) == str:
-            folder_dataset = dset.ImageFolder(root=self.root)
-        elif type(self.root) == list:
-            folder_dataset = ConcatDataset([dset.ImageFolder(root=root) for root in self.root])
         
-        if self.mining == "triplet":
-            self.siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
-                                                transform=self.transforms,should_invert=False) # Get dataparser class object
-        elif self.mining == "quadruplet":
-            self.siamese_dataset = SiameseQuadruplet(imageFolderDataset=folder_dataset,
-                                                transform=self.transforms,should_invert=False) # Get dataparser class object
+        self.train_siamese_dataset = self.cfg_siamese_dataset(self.training_path)
+        self.validation_siamese_dataset = self.cfg_siamese_dataset(self.validation_path)
+        self.test_siamese_dataset = self.cfg_siamese_dataset(self.testing_path)
         
 
     def train_dataloader(self):
-        return DataLoader(self.siamese_dataset,shuffle=True, 
-                            num_workers=4,batch_size=self.batch_size) # PyTorch data parser obeject
+        return DataLoader(self.train_siamese_dataset,shuffle=True, 
+                            num_workers=4,batch_size=self.training_batch_size) # PyTorch data parser obeject
 
+    def val_dataloader(self):
+        return DataLoader(self.validation_siamese_dataset,shuffle=True, 
+                            num_workers=4,batch_size=self.validation_batch_size) # PyTorch data parser obeject
+
+    def test_dataloader(self):
+        return DataLoader(self.test_siamese_dataset,shuffle=True, 
+                            num_workers=4,batch_size=self.testing_batch_size) # PyTorch data parser obeject
+
+    def cfg_siamese_dataset(self,path):
+        if self.path is not None:
+            if type(self.path) == str:
+                folder_dataset = dset.ImageFolder(root=self.path)
+            elif type(self.path) == list:
+                folder_dataset = ConcatDataset([dset.ImageFolder(root=root) for root in path])
+            else:
+                print(f"path is neither a string nor list: {type(self.path)}")
+                raise 
+        
+
+            if self.mining == "triplet":
+                siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
+                                                    transform=self.transforms,should_invert=False) # Get dataparser class object
+            elif self.mining == "quadruplet":
+                siamese_dataset = SiameseQuadruplet(imageFolderDataset=folder_dataset,
+                                                    transform=self.transforms,should_invert=False) # Get dataparser class object
+
+            return siamese_dataset
+
+        else:
+            return None

@@ -1,8 +1,7 @@
-data:
-  training_dir: /media/ADAS1/MARS/bbox_train/bbox_train/
-  testing_dir: /media/ADAS1/MARS/bbox_test/bbox_test/
-
+env:
+  exp_name: experiment_name
 training:
+  training_dir: /media/ADAS1/MARS/bbox_train/bbox_train/
   dataset: market1501
   batch_size: 128
   lr: 0.0005
@@ -12,12 +11,15 @@ training:
   quadruplet:
     margin_alpha: .1
     margin_beta: .01
+  kkt_weights: [1.0, 0.0]
 
 validation:
-  dataset: mot17half
+  validation_dir: /media/ADAS1/MARS/bbox_test/bbox_test/
+  batch_size: 256
 
 testing:
-  dataset: mot17half
+  mot_testing_dir: /media/train_mot/
+  batch_size: 256
 
 metrics:
   # metric: tripletacc
