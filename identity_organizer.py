@@ -1,6 +1,6 @@
 import os
 import shutil
-from argparse import ArgumentParser
+from jsonargparse import ArgumentParser, ActionConfigFile
 from pathlib import Path
 
 def parse_args():
@@ -8,6 +8,7 @@ def parse_args():
     parser.add_argument("--data_path", type=str, required=True, help="Path to Market-1501 dataset")
     parser.add_argument("--train_output", type=str, required=False, help="Output path for bounding_box_train identities", default=None)
     parser.add_argument("--gt_output", type=str, required=False, help="Output path for gt_bbox identities", default=None)
+    parser.add_argument("--config", action = ActionConfigFile)
     args = parser.parse_args()
     return args
 

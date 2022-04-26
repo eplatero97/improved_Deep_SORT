@@ -19,29 +19,6 @@ import imgaug as ia
 
 import glob 
 
-class get_gaussian_mask:
-	def __init__(self, dim0 = 256, dim1 = 128):
-		
-		#128 is image size
-		# We will be using 256x128 patch instead of original 128x128 path because we are using for pedestrain with 1:2 AR.
-		x, y = np.mgrid[0:1.0:256j, 0:1.0:128j] #128 is input size.
-		xy = np.column_stack([x.flat, y.flat])
-		mu = np.array([0.5,0.5])
-		sigma = np.array([0.22,0.22])
-		covariance = np.diag(sigma**2) 
-		z = multivariate_normal.pdf(xy, mean=mu, cov=covariance) 
-		z = z.reshape(x.shape) 
-
-		z = z / z.max()
-		z  = z.astype(np.float32)
-
-		self.mask = torch.from_numpy(z)
-
-	def __call__(self, img):
-		#Multiply each image with mask to give attention to center of the image.
-		# Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
-		return self.mask * img 
-
 
 
 def imshow(img,text=None,should_save=False):

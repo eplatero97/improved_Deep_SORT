@@ -13,12 +13,14 @@ import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
 from pytorch_lightning.core.lightning import LightningModule
+from torch.utils.data import ConcatDataset
 from scipy.stats import multivariate_normal
 import pytorch_lightning as pl
 from typing import Optional
 from siamese_dataloader import SiameseTriplet, SiameseQuadruplet
 from reid_architectures import *
 from metrics import * # TripletAcc
+from typing import Optional, Union
 
 
 """
@@ -157,60 +159,62 @@ class SiameseNetwork(ReID_Architectures):
         return output1,output2,output3
 
     def training_step(self, batch, batch_idx):
+        loss = self.abstract_forward_pass(batch, stage = "train")
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        self.abstract_forward_pass(batch, stage = "validation")
+    
+    def test_step(self, batch, batch_idx):
+        self.abstract_forward_pass(batch, stage = "test")
 
-        if self.criterion_name == "TripletLoss":
-            # Get anchor, positive and negative samples
-            anchor, positive, negative = batch
-            anchor, positive, negative = anchor.cuda(), positive.cuda() , negative.cuda()
-
-            if self.blur:
-                anchor, positive, negative = self.gaussian_mask(anchor), self.gaussian_mask(positive), self.gaussian_mask(negative)
-            
-            # produce embeddings
-            anchor_out, positive_out, negative_out = self(anchor, positive, negative)
-            # record triplet loss 
-            triplet_loss: torch.float32 = self.criterion(anchor_out, positive_out, negative_out) # Compute triplet loss on the output feature maps
-            self.log(f"train/{self.criterion_name}",  triplet_loss.item(), logger=True, on_step=True, on_epoch=False)
-            # record triplet accuracy
-            acc = self.acc(anchor, positive, negative).item()
-            self.log("train/acc", acc, logger=True, on_step=True, on_epoch=False)
-            # return triplet loss
-            return triplet_loss
-        elif self.criterion_name == "QuadrupletLoss":
-            # get anchor, positive, negative and negative2 embeddings
-            anchor, positive, negative, negative2 = batch
-            anchor, positive, negative, negative2 = anchor.cuda(), positive.cuda() , negative.cuda(), negative2.cuda()
-
-            # Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
-            if self.blur:
-                anchor, positive, negative, negative2 = self.gaussian_mask(anchor), self.gaussian_mask(positive), gaussian_mask(negative), gaussian_mask(negative2)
-
-            anchor_out, positive_out, negative_out, negative2_out = self(anchor, positive, negative, negative2) # Model forward propagation
-            # concatenate outputs
-            anchor_positive_out = torch.cat([anchor_out,positive_out],dim=-1)
-            anchor_negative_out = torch.cat([anchor_out,negative_out],dim=-1)
-            negative_negative2_out = torch.cat([negative_out,negative2_out],dim=-1)
-            # feed to learned metric network
-            ap_dist = self.metric_network(anchor_positive_out)
-            an_dist = self.metric_network(anchor_negative_out)
-            nn_dist = self.metric_network(negative_negative2_out)
-            # record quadruplet loss
-            quadruplet_loss: torch.float32 = criterion(ap_dist, an_dist, nn_dist) # Compute quadruplet loss on the output feature maps
-            self.log(f"train/{self.criterion_name}",  quadruplet_loss.item(), logger = True, on_step = True, on_epoch = False)
-            # record quadruplet accuracy
-            # acc = self.acc(anchor, positive, negative, ).item()
-            # self.log("train/acc", acc, logger=True, on_step=True, on_epoch=False)
-            return quadruplet_loss
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr = self.lr)
 
+    def preprocess_quad_embeddings(self, anchor_out, positive_out, negative_out, negative2_out):
+
+        # concatenate outputs
+        anchor_positive_out = torch.cat([anchor_out,positive_out],dim=-1)
+        anchor_negative_out = torch.cat([anchor_out,negative_out],dim=-1)
+        negative_negative2_out = torch.cat([negative_out,negative2_out],dim=-1)
+        # feed to learned metric network
+        ap_dist = self.metric_network(anchor_positive_out)
+        an_dist = self.metric_network(anchor_negative_out)
+        nn_dist = self.metric_network(negative_negative2_out)
+
+        return ap_dist, an_dist, nn_dist
+
+    def abstract_forward_pass(self, batch, stage: str = "train"):
+        batch = [img.cuda() for img in batch]
+        if self.blur:
+            # blur images to focus on center content of images
+            batch = [self.gaussian_mask(img) for img in batch]
+        # generate img embeddings
+        embeddings = [self(img) for img in batch]
+        if self.criterion_name == "TripletLoss":
+            anchor_out, positive_out, negative_out = embeddings # unpack embeddings 
+            loss = self.criterion(anchor_out, positive_out, negative_out) # compute triplet loss
+            acc = self.acc(anchor_out, positive_out, negative_out).item() # compute triplet accuracy
+        elif self.criterion_name == "QuadrupletLoss":
+            anchor_out, positive_out, negative_out, negative2_out = embeddings # unpack embeddings
+            ap_dist, an_dist, nn_dist = self.preprocess_quad_embeddings(anchor_out, positive_out, negative_out, negative2_out) # produce corresponding distances
+            loss: torch.float32 = self.criterion(ap_dist, an_dist, nn_dist) # compute quad loss
+            acc = self.acc(anchor_out, positive_out, negative_out, negative2_out).item() # compute quad accuracy
+        else:
+            print(f"CRITERIA IS NOT DEFINED: {self.criterion_name}")
+            raise 
+        # log metrics
+        self.log(f"{stage}/{self.criterion_name}",  loss.item(), logger=True, on_step=True, on_epoch=False)
+        self.log("{stage}/acc", acc, logger=True, on_step=True, on_epoch=False)
+
+        return loss
 
 
 
 # define Deep SORT dataloader
 class DeepSORTModule(pl.LightningDataModule):
-    def __init__(self, data_path: str = "path/to/dir", batch_size: int = 32, transforms = None, mining = "triplet"):
+    def __init__(self, data_path: Union[str,list] = "path/to/dir", batch_size: int = 32, transforms = None, mining = "triplet"):
         """Deep SORT Data Module
 
         Args:
@@ -224,7 +228,11 @@ class DeepSORTModule(pl.LightningDataModule):
         self.mining = mining
 
     def setup(self, stage: Optional[str] = None):
-        folder_dataset = dset.ImageFolder(root=self.root)
+        if type(self.root) == str:
+            folder_dataset = dset.ImageFolder(root=self.root)
+        elif type(self.root) == list:
+            folder_dataset = ConcatDataset([dset.ImageFolder(root=root) for root in self.root])
+        
         if self.mining == "triplet":
             self.siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
                                                 transform=self.transforms,should_invert=False) # Get dataparser class object

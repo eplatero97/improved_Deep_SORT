@@ -1,4 +1,5 @@
 #import torchvision.datasets as dset
+from pathlib import Path
 from torchvision import transforms as T 
 from torch.utils.data import DataLoader
 import PIL.ImageOps    
@@ -105,7 +106,7 @@ elif criterion_name == "quadruplet":
 # init model on gpu
 net = SiameseNetwork(cfg).cuda() 
 
-# define input transformations and then create dataloader
+# define input transformations 
 transforms = T.Compose([
 		T.Resize((128,64)) if cfg.model.arch_version == "v0" else T.Resize((256,128)),
 		T.ColorJitter(hue=.05, saturation=.05),
@@ -114,10 +115,17 @@ transforms = T.Compose([
 		T.ToTensor()
 		# get_gaussian_mask()
 		])
-train_datamodule = DeepSORTModule(cfg.data.training_dir, cfg.training.batch_size, transforms, criterion_name) # init training dataloader
+
+# define train dataloader
+train_datamodule = DeepSORTModule(cfg.data.training_dir, cfg.training.batch_size, transforms, criterion_name) 
+# define validation dataloader
+val_datamodule = DeepSORTModule(cfg.data.val_dir, cfg.validation.bath_size, transforms, criterion_name)
+# define testing dataloader
+mot_dirs = list(Path(cfg.data.mot_testing_dir).rglob("crops_gt"))
+test_datamodule = DeepSORTModule(mot_dirs)
 
 
-# create model checkpoint every 20 epochs
+# create model checkpoint every epoch
 checkpoint_callback = ModelCheckpoint(
     every_n_epochs = 1,
     dirpath = trainer_cfg.default_root_dir,
@@ -134,4 +142,5 @@ trainer_cfg.logger = wandb_logger
 trainer = Trainer.from_argparse_args(trainer_cfg)
 
 # begin training
-trainer.fit(net, train_datamodule)
+trainer.fit(net, train_datamodule, val_datamodule)
+trainer.test(datamodule=test_datamodule)
