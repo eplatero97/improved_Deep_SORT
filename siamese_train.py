@@ -11,7 +11,6 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 from typing import Optional
-from pytorch_lightning.profiler.advanced import AdvancedProfiler
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 from torch import nn
@@ -20,6 +19,7 @@ from callbacks import * # MyPrintingCallback
 import wandb
 from loguru import logger 
 from utils import * # wrap_namespace (turns nested dictionary into namespace)
+import os
 seed_everything(42, workers=True)
 
 # turn dictionary into namespace object
@@ -126,22 +126,30 @@ transforms = T.Compose([
 		# get_gaussian_mask()
 		])
 
-# define train dataloader
-train_datamodule = DeepSORTModule(cfg.training.training_dir, cfg.training.batch_size, transforms, criterion_name) 
-# define validation dataloader
-val_datamodule = DeepSORTModule(cfg.validation.validation_dir, cfg.validation.batch_size, transforms, criterion_name)
-# define testing dataloader
-mot_dirs = list(Path(cfg.testing.mot_testing_dir).rglob("crops_gt"))
-test_datamodule = DeepSORTModule(mot_dirs, cfg.testing.batch_size, transforms, criterion_name)
+# define train/validation/test dataloaders thorugh lightning datamodule
+training_path=cfg.training.training_dir
+validation_path=cfg.validation.validation_dir
+testing_path= list(Path(cfg.testing.mot_testing_dir).rglob("crops_gt"))
+training_batch_size=cfg.training.batch_size
+validation_batch_size=cfg.validation.batch_size
+testing_batch_size=cfg.testing.batch_size
+datamodule = DeepSORTModule(training_path=training_path, 
+								  validation_path=validation_path,
+								  testing_path=testing_path,
+								  training_batch_size=training_batch_size,
+								  validation_batch_size=validation_batch_size,
+								  testing_batch_size=testing_batch_size,
+								  transforms=transforms,
+								  mining=criterion_name)
 
-print(f"train_datamodule: {train_datamodule}")
-print(f"val_datamodule: {val_datamodule}")
-print(f"test_datamodule: {test_datamodule}")
+# print(f"train_datamodule: {train_datamodule}")
+# print(f"val_datamodule: {val_datamodule}")
+# print(f"test_datamodule: {test_datamodule}")
 
 # create model checkpoint every epoch
 checkpoint_callback = ModelCheckpoint(
     every_n_epochs = 1,
-    dirpath = trainer_cfg.default_root_dir,
+    dirpath = os.path.join(trainer_cfg.default_root_dir, "ckpts"),
     filename="Deep-SORT-{epoch:02d}-{val_loss:.2f}"
 )
 
@@ -155,5 +163,5 @@ trainer_cfg.logger = wandb_logger
 trainer = Trainer.from_argparse_args(trainer_cfg)
 
 # begin training
-trainer.fit(net, train_datamodule, val_datamodule)
-trainer.test(datamodule=test_datamodule)
+trainer.fit(net, datamodule=datamodule)
+trainer.test(datamodule=datamodule)

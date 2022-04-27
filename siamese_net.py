@@ -30,7 +30,7 @@ to perform operation on gpu
 """
 # need to generalize below
 class get_gaussian_mask:
-    def __init__(self, dim0 = 256j, dim1 = 128j, cuda: bool = False):
+    def __init__(self, dim0 = 256j, dim1 = 128j):
         
         #128 is image size
         # We will be using 256x128 patch instead of original 128x128 path because we are using for pedestrain with 1:2 AR.
@@ -45,17 +45,14 @@ class get_gaussian_mask:
         z = z / z.max()
         z  = z.astype(np.float32)
 
-        if cuda:
-            # `img` is also expected to be cuda
-            self.mask = torch.from_numpy(z).cuda()
-        else:
-            self.mask = torch.from_numpy(z)
+        self.mask = torch.from_numpy(z)
     
     @torch.no_grad()
     def __call__(self, img):
         #Multiply each image with mask to give attention to center of the image.
         # Multiple image patches with gaussian mask. It will act as an attention mechanism which will focus on the center of the patch
-        return self.mask * img 
+        mask = self.mask.type_as(img)
+        return mask * img 
 
 
 class MetricNetwork(LightningModule):
@@ -132,11 +129,11 @@ class SiameseNetwork(ReID_Architectures):
         # initiate model
         if cfg.model.arch_version == "v0":
             if self.blur:
-                self.gaussian_mask = get_gaussian_mask(dim0 = 128j, dim1=64j,cuda = True)
+                self.gaussian_mask = get_gaussian_mask(dim0 = 128j, dim1=64j)
             self.init_archv0()
         elif cfg.model.arch_version == "v1":
             if self.blur:
-                self.gaussian_mask = get_gaussian_mask(dim0=256j, dim1=128j, cuda=True)
+                self.gaussian_mask = get_gaussian_mask(dim0=256j, dim1=128j)
             self.init_archv1()
         else:
             print(f"Specified version is NOT defined")
@@ -186,12 +183,11 @@ class SiameseNetwork(ReID_Architectures):
         return ap_dist, an_dist, nn_dist
 
     def abstract_forward_pass(self, batch, stage: str = "train"):
-        batch = [img.cuda() for img in batch]
         if self.blur:
             # blur images to focus on center content of images
             batch = [self.gaussian_mask(img) for img in batch]
         # generate img embeddings
-        embeddings = [self(img) for img in batch]
+        embeddings = self(*batch)
         if self.criterion_name == "TripletLoss":
             anchor_out, positive_out, negative_out = embeddings # unpack embeddings 
             loss = self.criterion(anchor_out, positive_out, negative_out) # compute triplet loss
@@ -205,8 +201,8 @@ class SiameseNetwork(ReID_Architectures):
             print(f"CRITERIA IS NOT DEFINED: {self.criterion_name}")
             raise 
         # log metrics
-        self.log(f"{stage}/{self.criterion_name}",  loss.item(), logger=True, on_step=True, on_epoch=False)
-        self.log("{stage}/acc", acc, logger=True, on_step=True, on_epoch=False)
+        self.log(f"{stage}/{self.criterion_name}",  loss.item(), logger=True, on_step=True, on_epoch=False, sync_dist=True)
+        self.log(f"{stage}/acc", acc, logger=True, on_step=True, on_epoch=False, sync_dist=True)
 
         return loss
 
@@ -259,13 +255,13 @@ class DeepSORTModule(pl.LightningDataModule):
                             num_workers=4,batch_size=self.testing_batch_size) # PyTorch data parser obeject
 
     def cfg_siamese_dataset(self,path):
-        if self.path is not None:
-            if type(self.path) == str:
-                folder_dataset = dset.ImageFolder(root=self.path)
-            elif type(self.path) == list:
+        if path is not None:
+            if type(path) == str:
+                folder_dataset = dset.ImageFolder(root=path)
+            elif type(path) == list:
                 folder_dataset = ConcatDataset([dset.ImageFolder(root=root) for root in path])
             else:
-                print(f"path is neither a string nor list: {type(self.path)}")
+                print(f"path is neither a string nor list: {type(path)}")
                 raise 
         
 

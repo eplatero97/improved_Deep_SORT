@@ -1,0 +1,27 @@
+{
+    "os": "Linux-5.13.0-40-generic-x86_64-with-debian-bullseye-sid",
+    "python": "3.6.15",
+    "heartbeatAt": "2022-04-27T19:42:36.570918",
+    "startedAt": "2022-04-27T19:42:35.046952",
+    "docker": null,
+    "gpu": "NVIDIA GeForce RTX 3060",
+    "gpu_count": 1,
+    "cpu_count": 16,
+    "cuda": null,
+    "args": [
+        "--config",
+        "/home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial1/warmup.yaml"
+    ],
+    "state": "running",
+    "program": "siamese_train.py",
+    "codePath": "siamese_train.py",
+    "git": {
+        "remote": "git@personal.github.com:eplatero97/improved_Deep_SORT",
+        "commit": "65c81fb57d0977f3b838b69d5da17164f2a23fc2"
+    },
+    "email": "eeplater@central.uh.edu",
+    "root": "/home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/improved_Deep_SORT",
+    "host": "cbl-G505570",
+    "username": "eeplater",
+    "executable": "/home/cougarnet.uh.edu/eeplater/anaconda3/envs/deep_sort/bin/python"
+}
