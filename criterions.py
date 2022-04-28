@@ -88,13 +88,14 @@ class CombinedTripletLosses(nn.Module):
         super().__init__()
         n_losses = len(losses)
         n_weights = len(kkt_weights)
-        assert n_losses == n_weights
+        assert n_losses == n_weights, f"number of losses ({n_losses} does NOT equal number of weights ({n_weights}))"
         self.losses = losses
-        self.weights = torch.FloatTensor(kkt_weights).cuda() # torch.Size([n_weights])
+        self.weights = torch.FloatTensor(kkt_weights) # torch.Size([n_weights])
     def forward(self, anchor, positive, negative) -> torch.float:
         # anchor.shape == positive.shape == negative.shape == [batch_size, feat_embedding]
+        weights = self.weights.type_as(anchor)
         loss_outs = torch.concat([loss(anchor,positive,negative).view(1) for loss in self.losses]) # shape: torch.Size([n_weights])
-        out = torch.dot(loss_outs, self.weights)
+        out = torch.dot(loss_outs, weights)
         return out
 
 

@@ -59,7 +59,7 @@ cfg = YamlParser(config_file="./cfgs/default_cfg.yml")
 cfg.merge_from_dict(args)
 
 # init wandb and pass configurations to wandb
-wandb_logger = WandbLogger(project="smart-bus", name = cfg["env"]["exp_name"], log_model = "all")
+wandb_logger = WandbLogger(project="smart-bus", name = cfg["env"]["exp_name"], log_model = True)
 wandb_logger.experiment.config.update(cfg)
 
 # turn nested dictionary into namespace
@@ -142,9 +142,6 @@ datamodule = DeepSORTModule(training_path=training_path,
 								  transforms=transforms,
 								  mining=criterion_name)
 
-# print(f"train_datamodule: {train_datamodule}")
-# print(f"val_datamodule: {val_datamodule}")
-# print(f"test_datamodule: {test_datamodule}")
 
 # create model checkpoint every epoch
 checkpoint_callback = ModelCheckpoint(
@@ -164,4 +161,5 @@ trainer = Trainer.from_argparse_args(trainer_cfg)
 
 # begin training
 trainer.fit(net, datamodule=datamodule)
-trainer.test(datamodule=datamodule)
+trainer.test(datamodule=datamodule, ckpt_path="best")
+# trainer.test(net, datamodule=datamodule)

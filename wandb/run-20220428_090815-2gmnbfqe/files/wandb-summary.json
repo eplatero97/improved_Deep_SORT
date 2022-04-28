@@ -1,0 +1,1 @@
+{"train/TripletLoss": 0.11521871387958527, "train/acc": 0.6666666865348816, "epoch": 1, "trainer/global_step": 102, "_timestamp": 1651155188, "_runtime": 293, "_step": 2, "validation/TripletLoss": 0.12797214090824127, "validation/acc": 0.7900022864341736, "test/TripletLoss": 0.2584783434867859, "test/acc": 0.8408131003379822, "_wandb": {"runtime": 294}}

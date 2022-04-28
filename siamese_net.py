@@ -114,17 +114,22 @@ class SiameseNetwork(ReID_Architectures):
         self.criterion_name: str = type(cfg.training.criterion).__name__
         self.act: nn.modules.activation = cfg.model.act
         self.blur: bool = cfg.model.blur
+        self.triplet_criterion_names = ["TripletLoss","TripletMarginLoss","CombinedTripletLosses"]
+        self.quadruplet_criterion_names = ["QuadrupletLoss","CombinedQuadrupletLosses"]
 
         # define metric network
-        if self.criterion_name == "QuadrupletLoss":
+        if self.criterion_name in self.quadruplet_criterion_names:
             self.metric_network = MetricNetwork(1024)
             p = cfg.metrics.quadrupletacc.p
             dist_thresh = cfg.metrics.quadrupletacc.dist_thresh
             self.acc = QuadrupletAcc(p=p, dist_thresh=dist_thresh)
-        elif self.criterion_name == "TripletLoss":
+        elif self.criterion_name in self.triplet_criterion_names:
             p = cfg.metrics.tripletacc.p
             dist_thresh = cfg.metrics.tripletacc.dist_thresh
             self.acc = TripletAcc(p=p, dist_thresh=dist_thresh)
+        else:
+            print(f"CRITERION NAME: {self.criterion_name} is NOT defined")
+            raise 
 
         # initiate model
         if cfg.model.arch_version == "v0":
@@ -188,11 +193,11 @@ class SiameseNetwork(ReID_Architectures):
             batch = [self.gaussian_mask(img) for img in batch]
         # generate img embeddings
         embeddings = self(*batch)
-        if self.criterion_name == "TripletLoss":
+        if self.criterion_name in self.triplet_criterion_names:
             anchor_out, positive_out, negative_out = embeddings # unpack embeddings 
             loss = self.criterion(anchor_out, positive_out, negative_out) # compute triplet loss
             acc = self.acc(anchor_out, positive_out, negative_out).item() # compute triplet accuracy
-        elif self.criterion_name == "QuadrupletLoss":
+        elif self.criterion_name in self.quadruplet_criterion_names:
             anchor_out, positive_out, negative_out, negative2_out = embeddings # unpack embeddings
             ap_dist, an_dist, nn_dist = self.preprocess_quad_embeddings(anchor_out, positive_out, negative_out, negative2_out) # produce corresponding distances
             loss: torch.float32 = self.criterion(ap_dist, an_dist, nn_dist) # compute quad loss
@@ -201,8 +206,14 @@ class SiameseNetwork(ReID_Architectures):
             print(f"CRITERIA IS NOT DEFINED: {self.criterion_name}")
             raise 
         # log metrics
-        self.log(f"{stage}/{self.criterion_name}",  loss.item(), logger=True, on_step=True, on_epoch=False, sync_dist=True)
-        self.log(f"{stage}/acc", acc, logger=True, on_step=True, on_epoch=False, sync_dist=True)
+        if stage in ["train","validation", "test"]:
+            on_step=False
+            on_epoch=True
+        else:
+            on_step=True
+            on_epoch=False
+        self.log(f"{stage}/{self.criterion_name}",  loss.item(), logger=True, on_step=on_step, on_epoch=on_epoch, sync_dist=True)
+        self.log(f"{stage}/acc", acc, logger=True, on_step=on_step, on_epoch=on_epoch, sync_dist=True)
 
         return loss
 
@@ -247,11 +258,11 @@ class DeepSORTModule(pl.LightningDataModule):
                             num_workers=4,batch_size=self.training_batch_size) # PyTorch data parser obeject
 
     def val_dataloader(self):
-        return DataLoader(self.validation_siamese_dataset,shuffle=True, 
+        return DataLoader(self.validation_siamese_dataset,shuffle=False, 
                             num_workers=4,batch_size=self.validation_batch_size) # PyTorch data parser obeject
 
     def test_dataloader(self):
-        return DataLoader(self.test_siamese_dataset,shuffle=True, 
+        return DataLoader(self.test_siamese_dataset,shuffle=False, 
                             num_workers=4,batch_size=self.testing_batch_size) # PyTorch data parser obeject
 
     def cfg_siamese_dataset(self,path):
@@ -259,20 +270,30 @@ class DeepSORTModule(pl.LightningDataModule):
             if type(path) == str:
                 folder_dataset = dset.ImageFolder(root=path)
             elif type(path) == list:
-                folder_dataset = ConcatDataset([dset.ImageFolder(root=root) for root in path])
+                folder_dataset = [dset.ImageFolder(root=str(root)) for root in path]
             else:
                 print(f"path is neither a string nor list: {type(path)}")
                 raise 
-        
-
-            if self.mining == "triplet":
-                siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
-                                                    transform=self.transforms,should_invert=False) # Get dataparser class object
-            elif self.mining == "quadruplet":
-                siamese_dataset = SiameseQuadruplet(imageFolderDataset=folder_dataset,
-                                                    transform=self.transforms,should_invert=False) # Get dataparser class object
-
-            return siamese_dataset
-
         else:
             return None
+        
+
+        if self.mining == "triplet":
+            if type(folder_dataset) == list:
+                siamese_dataset = ConcatDataset([SiameseTriplet(imageFolderDataset=fd,
+                                                transform=self.transforms,should_invert=False) for fd in folder_dataset])
+            else:
+                siamese_dataset = SiameseTriplet(imageFolderDataset=folder_dataset,
+                                                transform=self.transforms,should_invert=False) # Get dataparser class object
+        elif self.mining == "quadruplet":
+            if type(folder_dataset) == list:
+                siamese_dataset = ConcatDataset([SiameseQuadruplet(imageFolderDataset=fd,
+                                                transform=self.transforms,should_invert=False) for fd in folder_dataset])
+            else:
+                siamese_dataset = SiameseQuadruplet(imageFolderDataset=folder_dataset,
+                                                transform=self.transforms,should_invert=False) # Get dataparser class object
+        else:
+            print(f"mining strategy: {self.mining} has not been implemented yet")
+            raise 
+
+        return siamese_dataset
