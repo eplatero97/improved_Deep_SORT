@@ -39,6 +39,19 @@ With the video downloaded and all packages installed correctly, you should be ab
 python test_on_video.py
 ```
 If you want to train your own feature extractor, proceed to the next section.
+
+# Usage
+
+## Obtaining a dataset
+
+You can download datasets to train and test the data such as the [Market-1501 Dataset](http://zheng-lab.cecs.anu.edu.au/Project/project_reid.html) or the [MOT17 Dataset](https://motchallenge.net/data/MOT17/). Alternatively, you can provide your own dataset of video frames with human subjects (with ground truths, if training), as long as the file structure matches either the Market-1501 or MOT data structure.
+
+__Important:__ If using the MOT17 dataset, or another dataset in the MOT format, it must first be converted to the Market-1501 format for use with this model. The following command can be used to perform the conversion:
+
+```sh
+python cropper.py --mot-path "path to MOT partition containing directories of videos"
+```
+
 # Training a custom feature extractor 
 Since, the original deepsort focused on MARS dataset, which is based on people, the feature extractor is trained on humans. We need an equivalent feature extractor for vehicles. We shall be training a Siamese network for the same. More info on siamese nets can be found  [here](https://www.cs.cmu.edu/~rsalakhu/papers/oneshot1.pdf) and [here](https://towardsdatascience.com/lossless-triplet-loss-7e932f990b24)
 
