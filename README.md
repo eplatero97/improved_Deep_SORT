@@ -49,7 +49,7 @@ You can download datasets to train and test the data such as the [Market-1501 Da
 __Important:__ If using the MOT17 dataset, or another dataset in the MOT format, it must first be converted to the Market-1501 format for use with this model. The following command can be used to perform the conversion:
 
 ```sh
-python cropper.py --mot-path "path to MOT partition containing directories of videos"
+python cropper.py --mot-path "path to MOT dataset partition containing directories of sequences"
 ```
 
 # Training a custom feature extractor 
