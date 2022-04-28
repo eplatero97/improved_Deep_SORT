@@ -1,15 +1,15 @@
-opencv-python
-matplotlib
-scipy
+opencv-python==4.5.5
+matplotlib==3.3.4
+scipy==1.5.4
 # tensorflow_gpu==2.5.3
-torchvision
-torch
-imgaug
-numpy
+torchvision==0.11.3
+torch==1.10.2
+imgaug==0.4.0
+numpy==1.19.2
 Pillow
 nonechucks
-scikit_learn
-pytorch-lightning
-jsonargparse
-loguru
+scikit_learn==0.22.2
+pytorch-lightning==1.5.10
+jsonargparse==4.2.0
+loguru==0.6.0
 easydict
