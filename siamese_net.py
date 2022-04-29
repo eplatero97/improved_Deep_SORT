@@ -22,7 +22,6 @@ from reid_architectures import *
 from metrics import * # TripletAcc
 from typing import Optional, Union
 
-
 """
 using below blur is really slow to perform on cpu. 
 As such, authors move it to the forward part of the model
@@ -58,20 +57,20 @@ class get_gaussian_mask:
 class MetricNetwork(LightningModule):
     def apply_weights(self, m):
         if isinstance(m, nn.Linear):
-            nn.init.kaiming_normal_(m)
+            nn.init.kaiming_normal_(m.weight)
     def __init__(self, single_embedding_shape):
         super(MetricNetwork, self).__init__()
         self.input_shape = single_embedding_shape
-        self.input_shape[0]=self.input_shape*2
+        self.input_shape=self.input_shape*2
         ops = nn.ModuleList()
         ops.append(nn.Linear(self.input_shape,10))
-        ops.append(nn.ReLU)
+        ops.append(nn.ReLU())
         ops.append(nn.Linear(10,10))
-        ops.append(nn.ReLU)
+        ops.append(nn.ReLU())
         ops.append(nn.Linear(10,10))
-        ops.append(nn.ReLU)
+        ops.append(nn.ReLU())
         ops.append(nn.Linear(10,2))
-        ops.append(nn.Softmax)
+        ops.append(nn.Softmax())
         self.net = nn.Sequential(*ops)
         self.net.apply(self.apply_weights)
 
@@ -119,7 +118,7 @@ class SiameseNetwork(ReID_Architectures):
 
         # define metric network
         if self.criterion_name in self.quadruplet_criterion_names:
-            self.metric_network = MetricNetwork(1024)
+            self.metric_network = MetricNetwork(128)
             p = cfg.metrics.quadrupletacc.p
             dist_thresh = cfg.metrics.quadrupletacc.dist_thresh
             self.acc = QuadrupletAcc(p=p, dist_thresh=dist_thresh)
@@ -148,7 +147,7 @@ class SiameseNetwork(ReID_Architectures):
         
     def forward_once(self, x):
         # x.shape: Union[torch.Size([batch_size,3,256,128]), torch.Size([batch_size,3,128,64])]
-        return self.net(x) # shape: torch.Size([batch_size, feat_dim]) 
+        return self.net(x) # shape: torch.Size([batch_size, feat_dim])
 
     def forward(self, input1, input2,input3,input4=None):
         output1 = self.forward_once(input1)

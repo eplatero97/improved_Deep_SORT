@@ -70,8 +70,8 @@ class QuadrupletLoss(nn.Module):
         ap_dist2 = torch.square(ap_dist)
         an_dist2 = torch.square(an_dist)
         nn_dist2 = torch.square(nn_dist)
-        return torch.sum(torch.max(ap_dist2-an_dist2+self.margin_a,dim=0),dim=0)\
-               +torch.sum(torch.max(ap_dist2-nn_dist2+self.margin_b, dim=0),dim=0)
+        return torch.max(ap_dist2-an_dist2+self.margin_a)\
+               +torch.max(ap_dist2-nn_dist2+self.margin_b)
 
 
 class CombinedTripletLosses(nn.Module):
