@@ -1,0 +1,1 @@
+{"train/TripletMarginLoss_step": 0.8191277384757996, "train/acc_step": 0.99609375, "epoch": 4, "trainer/global_step": 499, "_timestamp": 1651697295, "_runtime": 239, "_step": 12, "validation/TripletMarginLoss": 0.7874492406845093, "validation/acc": 0.997802734375, "train/TripletMarginLoss_epoch": 0.7839837670326233, "train/acc_epoch": 0.9976035952568054}

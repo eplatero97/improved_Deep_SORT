@@ -46,6 +46,7 @@ parser.add_argument("--training.batch_size", type = int, default = 128)
 parser.add_argument("--training.lr", type = float, default = 0.0005)
 parser.add_argument("--training.criterion", type=str, default="triplet_cos")
 parser = args_per_criterion(parser) # adds parameters of each defined criterion in `args_per_criterion`
+parser = args_per_metric(parser) # adds parameters of each metric defined in `metrics.py`
 parser.add_argument("--validation.dataset", type=str, default="mot17half")
 parser.add_argument("--testing.dataset", type=str, default="mot17half")
 

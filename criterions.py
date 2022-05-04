@@ -61,17 +61,21 @@ class QuadrupletLoss(nn.Module):
         parser.add_argument("--training.quadruplet.margin_beta", type=float, default=.01)
         return parent_parser
     
-    def __init__(self, margin_alpha=.1, margin_beta=.01, **kwargs):
+    def __init__(self, margin_alpha: float=.1, margin_beta: float=.01, **kwargs):
         super(QuadrupletLoss, self).__init__()
         self.margin_a = margin_alpha
         self.margin_b = margin_beta
 
     def forward(self, ap_dist, an_dist, nn_dist) -> torch.float:
+        # ap_dist.shape == an_dist.shape == nn_dist.shape == torch.Size([batch_size])
         ap_dist2 = torch.square(ap_dist)
         an_dist2 = torch.square(an_dist)
         nn_dist2 = torch.square(nn_dist)
-        return torch.max(ap_dist2-an_dist2+self.margin_a)\
-               +torch.max(ap_dist2-nn_dist2+self.margin_b)
+
+        diff1 = ap_dist2-an_dist2+self.margin_a
+        diff2 = ap_dist2-nn_dist2+self.margin_b
+        return torch.max(diff1,0).values\
+               +torch.max(diff2,0).values
 
 
 class CombinedTripletLosses(nn.Module):

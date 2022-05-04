@@ -58,10 +58,9 @@ class MetricNetwork(LightningModule):
     def apply_weights(self, m):
         if isinstance(m, nn.Linear):
             nn.init.kaiming_normal_(m.weight)
-    def __init__(self, single_embedding_shape):
+    def __init__(self, single_embedding_shape: int):
         super(MetricNetwork, self).__init__()
-        self.input_shape = single_embedding_shape
-        self.input_shape=self.input_shape*2
+        self.input_shape = single_embedding_shape*2 # the two input embeddings will be concatenated
         ops = nn.ModuleList()
         ops.append(nn.Linear(self.input_shape,10))
         ops.append(nn.ReLU())
@@ -69,14 +68,15 @@ class MetricNetwork(LightningModule):
         ops.append(nn.ReLU())
         ops.append(nn.Linear(10,10))
         ops.append(nn.ReLU())
-        ops.append(nn.Linear(10,2))
-        ops.append(nn.Softmax())
+        ops.append(nn.Linear(10,2)) 
+        ops.append(nn.Softmax()) # shape: [batch_size, 2] (after output)
         self.net = nn.Sequential(*ops)
         self.net.apply(self.apply_weights)
 
     def forward(self, x):
-        out = self.net(x)
-        return out[:, 0]
+        # x.shape: [batch_size, feats*2]
+        out = self.net(x) # shape: [batch_size, 2]
+        return out[:, 0] # shape: torch.Size([batch_size])
 
 
 
@@ -119,13 +119,14 @@ class SiameseNetwork(ReID_Architectures):
         # define metric network
         if self.criterion_name in self.quadruplet_criterion_names:
             self.metric_network = MetricNetwork(128)
-            p = cfg.metrics.quadrupletacc.p
-            dist_thresh = cfg.metrics.quadrupletacc.dist_thresh
-            self.acc = QuadrupletAcc(p=p, dist_thresh=dist_thresh)
+            # margin_alpha = cfg.metrics.quadrupletacc.margin_alpha
+            # margin_beta = cfg.metrics.quadrupletacc.margin_beta
+            # self.acc = QuadrupletAcc(self.metric_network, margin_alpha, margin_beta)
+            self.acc = QuadrupletAcc(self.metric_network)
         elif self.criterion_name in self.triplet_criterion_names:
             p = cfg.metrics.tripletacc.p
-            dist_thresh = cfg.metrics.tripletacc.dist_thresh
-            self.acc = TripletAcc(p=p, dist_thresh=dist_thresh)
+            #dist_thresh = cfg.metrics.tripletacc.dist_thresh
+            self.acc = TripletAcc(p=p)#, dist_thresh=dist_thresh)
         else:
             print(f"CRITERION NAME: {self.criterion_name} is NOT defined")
             raise 
@@ -180,9 +181,9 @@ class SiameseNetwork(ReID_Architectures):
         anchor_negative_out = torch.cat([anchor_out,negative_out],dim=-1)
         negative_negative2_out = torch.cat([negative_out,negative2_out],dim=-1)
         # feed to learned metric network
-        ap_dist = self.metric_network(anchor_positive_out)
-        an_dist = self.metric_network(anchor_negative_out)
-        nn_dist = self.metric_network(negative_negative2_out)
+        ap_dist = self.metric_network(anchor_positive_out) # torch.Size([batch_size])
+        an_dist = self.metric_network(anchor_negative_out) # torch.Size([batch_size])
+        nn_dist = self.metric_network(negative_negative2_out) # torch.Size([batch_size])
 
         return ap_dist, an_dist, nn_dist
 
@@ -195,24 +196,24 @@ class SiameseNetwork(ReID_Architectures):
         if self.criterion_name in self.triplet_criterion_names:
             anchor_out, positive_out, negative_out = embeddings # unpack embeddings 
             loss = self.criterion(anchor_out, positive_out, negative_out) # compute triplet loss
-            acc = self.acc(anchor_out, positive_out, negative_out).item() # compute triplet accuracy
+            acc = self.acc(anchor_out.detach(), positive_out.detach(), negative_out.detach()).item() # compute triplet accuracy
         elif self.criterion_name in self.quadruplet_criterion_names:
             anchor_out, positive_out, negative_out, negative2_out = embeddings # unpack embeddings
-            ap_dist, an_dist, nn_dist = self.preprocess_quad_embeddings(anchor_out, positive_out, negative_out, negative2_out) # produce corresponding distances
+            ap_dist, an_dist, nn_dist = self.preprocess_quad_embeddings(anchor_out, positive_out, negative_out, negative2_out) # (each shape: torch.Size([batch_size]))
             loss: torch.float32 = self.criterion(ap_dist, an_dist, nn_dist) # compute quad loss
-            acc = self.acc(anchor_out, positive_out, negative_out, negative2_out).item() # compute quad accuracy
+            acc = self.acc(anchor_out.detach(), positive_out.detach(), negative_out.detach(), negative2_out.detach()).item() # compute quad accuracy
         else:
             print(f"CRITERIA IS NOT DEFINED: {self.criterion_name}")
             raise 
         # log metrics
-        if stage in ["train","validation", "test"]:
-            on_step=False
-            on_epoch=True
-        else:
-            on_step=True
-            on_epoch=False
-        self.log(f"{stage}/{self.criterion_name}",  loss.item(), logger=True, on_step=on_step, on_epoch=on_epoch, sync_dist=True)
-        self.log(f"{stage}/acc", acc, logger=True, on_step=on_step, on_epoch=on_epoch, sync_dist=True)
+        # if stage in ["train","validation", "test"]:
+        #     on_step=False
+        #     on_epoch=True
+        # else:
+        #     on_step=True
+        #     on_epoch=False
+        self.log(f"{stage}/{self.criterion_name}",  loss.item(), logger=True, on_epoch=True, sync_dist=True)
+        self.log(f"{stage}/acc", acc, logger=True, on_epoch=True, sync_dist=True)
 
         return loss
 

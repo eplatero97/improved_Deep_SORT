@@ -1,66 +1,110 @@
-## Object Tracking
-Installation: Use this command to install all the necessary packages. Note that we are using ```python3```
+## Introduction
+This repository contains code to train Deep SORT's re-identification model with different optimization schemes. More spcifically, the optimization functions we use are:
+* Triplet cosine using cosine and euclidean distance
+* Weighted combination of triplet with cosine and euclidean
+* Quadruplet loss
 
-Link to the blog [click here](https://blog.nanonets.com/object-tracking-deepsort/)
+The design of this project is modular to allow the user to customize the configuration file to try different options. 
+
+## Dependencies
+The code has been tested only python 3.6. To install the required libraries, run below command:
 ```sh
 pip install -r requirements.txt
 ```
-This module is built on top of the original deep sort module https://github.com/nwojke/deep_sort
-Since, the primary objective is to track objects, We assume that the detections are already available to us, for the given video. The   ``` det/``` folder contains detections from Yolo, SSD and Mask-RCNN for the given video.
+> NOTE: we recommend creating a conda virtual environment to run this code `conda create -n deep_sort python=3.6`. 
 
-```deepsort.py``` is our bridge class that utilizes the original deep sort implementation, with our custom configs. We simply need to specify the encoder (feature extractor) we want to use and pass on the detection outputs to get the tracked bounding boxes. 
-```test_on_video.py``` is our example code, that runs deepsort on a video whose detection bounding boxes are already given to us. 
-
-# A simplified overview:
+## Datasets
+For training and testing, we used the [Market-1501](http://zheng-lab.cecs.anu.edu.au/Project/project_reid.html) dataset which you can download by runing below:
 ```sh
-#Initialize deep sort object.
-deepsort = deepsort_rbc(wt_path='ckpts/model640.pt') #path to the feature extractor model.
-
-#Obtain all the detections for the given frame.
-detections,out_scores = get_gt(frame,frame_id,gt_dict)
-
-#Pass detections to the deepsort object and obtain the track information.
-tracker,detections_class = deepsort.run_deep_sort(frame,out_scores,detections)
-
-#Obtain info from the tracks.
-for track in tracker.tracks:
-    bbox = track.to_tlbr() #Get the corrected/predicted bounding box
-    id_num = str(track.track_id) #Get the ID for the particular track.
-    features = track.features #Get the feature vector corresponding to the detection.
+wget -c http://188.138.127.15:81/Datasets/Market-1501-v15.09.15.zip
 ```
-The ```tracker``` object returned by deepsort contains all necessary info like the track_id, the predicted bounding boxes and the corresponding feature vector of the object. 
 
-Download the test video from [here](https://drive.google.com/open?id=1h2Wnb98tDVB6JlCDNQXCeZpG20x6AiZ2).
+For validation, we downloaded the training segment of the [MOT17 Dataset](https://motchallenge.net/data/MOT17/).
 
-The pre-trained weights of the feature extractor are present in ```ckpts/``` folder.
-With the video downloaded and all packages installed correctly, you should be able to run the demo with
-
+Once you have downloaded all the datasets, you should have a directory path like below:
 ```sh
-python test_on_video.py
+Datasets
+└─ Market-1501-v15.09.15
+	├── bounding_box_test
+	├── bounding_box_train
+	├── . . .
+    ├── query
+└─ MOT17
+    ├── test
+		├── . . .
+    ├── train
+		├── . . .
 ```
-If you want to train your own feature extractor, proceed to the next section.
 
-# Usage
-
-## Obtaining a dataset
-
-You can download datasets to train and test the data such as the [Market-1501 Dataset](http://zheng-lab.cecs.anu.edu.au/Project/project_reid.html) or the [MOT17 Dataset](https://motchallenge.net/data/MOT17/). Alternatively, you can provide your own dataset of video frames with human subjects (with ground truths, if training), as long as the file structure matches either the Market-1501 or MOT data structure.
-
-__Important:__ If using the MOT17 dataset, or another dataset in the MOT format, it must first be converted to the Market-1501 format for use with this model. The following command can be used to perform the conversion:
-
+## Pre-Processing
+Since this work focuses on training the re-identification embedding of Deep SORT (and ignores the tracking framework), we format all our datasets into below format to easily mine triplet and quadruplet samples:
 ```sh
-python cropper.py --mot-path "path to MOT dataset partition containing directories of sequences"
+dataset
+└─ 0001
+	├── 0001_c1s1_001051_00.jpg
+	├── 0001_c1s1_002301_00.jpg
+	├── . . .
+	├── 0001_c6s3_077467_00.jpg
+└─ 0002
+└─ . . .
 ```
 
-# Training a custom feature extractor 
-Since, the original deepsort focused on MARS dataset, which is based on people, the feature extractor is trained on humans. We need an equivalent feature extractor for vehicles. We shall be training a Siamese network for the same. More info on siamese nets can be found  [here](https://www.cs.cmu.edu/~rsalakhu/papers/oneshot1.pdf) and [here](https://towardsdatascience.com/lossless-triplet-loss-7e932f990b24)
+Neither Market-1501 nor MOT17 come in the above dataset format. Further, while the images in the Market-1501 dataset are cropped images of the localization of a person, MOT17 comes in a video format (and thus, we need to crop the bounding box localizations in the video frames). To do this, run below commands
+```sh
+# turn Market-1501 to above format
+python crop_dimensions.py --data_path /path/to/market1501/dataset --output_path out/path/ 
 
-We have a training and testing set, extracted from the NVIDIA AI city Challenge dataset. You can download it from [here](https://nanonets.s3-us-west-2.amazonaws.com/blogs/object-tracking-crops-data.tar.gz).
- 
-Extract the ```crops``` and ```crops_test``` folders in the same working directory. Both folders have 184 different sub-folders, each of which contains crops of a certain vehicle, shot in various views. 
-Once, the folders have been extracted, we can go through the network configurations and the various options in ```siamese_net.py``` and ```siamese_dataloader.py```. If satisfied, we can start the training process by:
-```sh 
-python siamese_train.py
+
+# turn MOT17 to above format
+python cropper.py --mot-path /path/to/mot/training/dataset/partition/
 ```
-The trained weights will be stored in ```ckpts/``` folder. We can use ```python siamese_test.py``` to test the accuracy of the trained model. 
-Once trained, this model can be plugged in to our deepsort class instance.
+> NOTE: for more help, you can always run something like `python cropper.py --help`. Further, for the output of `crop_dimensions.py`, you will have to manualy delete a `Thumbs` directory that includes a *.db file.
+
+
+## Training Re-ID Embedding
+To run training with the default configurations just run below:
+```sh
+python siamese_net.py --training.training_dir /market1501/training/path --validation.validation_dir /market1501/testing/path --testing.mot_testing_dir /mot17/train
+```
+
+If you want to customize the optimization function or any of the `Trainer` parameters from pytorch-lightning, you could do so by specifying the arguments through the command line but we highly recommend to create a configuration file like below:
+
+`config.yaml`
+```yaml
+# enviornment parameters
+env:
+  exp_name: deepsort-triplet_cos
+# training parameters
+training:
+  training_dir: /home/cougarnet.uh.edu/eeplater/Documents/Datasets/Market-1501-v15.09.15/bounding_box_train_pt_format
+  criterion: triplet_cos
+  batch_size: 128
+  lr: .05
+# validation parameters
+validation:
+  validation_dir: /home/cougarnet.uh.edu/eeplater/Documents/Datasets/Market-1501-v15.09.15/gt_bbox_pt_format
+  batch_size: 256
+# testing parameters
+testing:
+  mot_testing_dir: /home/cougarnet.uh.edu/eeplater/Documents/Datasets/MOT17/train
+  batch_size: 256
+# re-id model parameters
+model:
+  use_dropout: False
+  act: elu
+  blur: True
+  arch_version: v0
+# pl `Trainer` parameters
+trainer:
+  max_epochs: 1
+  default_root_dir: /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial1
+  gpus: -1
+  log_every_n_steps: 100
+  profiler: simple
+```
+
+## References
+* Deep SORT publication: https://arxiv.org/pdf/1703.07402.pdf
+
+## Acknowledgements
+We originally forked this repository from [here])(https://github.com/abhyantrika/nanonets_object_tracking). As such, a large part of this code such as `siamese_dataloader.py` originates from there. 

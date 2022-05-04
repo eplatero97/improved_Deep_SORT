@@ -9,8 +9,8 @@ training:
   triplet:
     margin: 1.0
   quadruplet:
-    margin_alpha: .1
-    margin_beta: .01
+    margin_alpha: 2.0
+    margin_beta: 1.0
   kkt_weights: [1.0, 0.0]
 
 validation:
@@ -25,10 +25,10 @@ metrics:
   # metric: tripletacc
   tripletacc:
     p: 2.0
-    dist_thresh: 0.2
-  quadrupletacc:
-    p: 2.0
-    dist_thresh: 0.2
+  #  dist_thresh: 0.2
+  # quadrupletacc:
+  #   margin_alpha: 0.2
+  #   margin_beta: 0.1
 
 model:
   use_dropout: False
