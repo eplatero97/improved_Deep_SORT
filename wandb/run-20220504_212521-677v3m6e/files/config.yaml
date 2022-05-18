@@ -11,7 +11,7 @@ _wandb:
     - 1: trainer/global_step
       6:
       - 3
-    - 1: train/TripletMarginLoss_step
+    - 1: train/QuadrupletLoss_step
       5: 1
       6:
       - 1
@@ -23,7 +23,7 @@ _wandb:
       5: 1
       6:
       - 1
-    - 1: validation/TripletMarginLoss
+    - 1: validation/QuadrupletLoss
       5: 1
       6:
       - 1
@@ -31,7 +31,7 @@ _wandb:
       5: 1
       6:
       - 1
-    - 1: train/TripletMarginLoss_epoch
+    - 1: train/QuadrupletLoss_epoch
       5: 1
       6:
       - 1
@@ -39,7 +39,7 @@ _wandb:
       5: 1
       6:
       - 1
-    - 1: test/TripletMarginLoss
+    - 1: test/QuadrupletLoss
       5: 1
       6:
       - 1
@@ -48,7 +48,7 @@ _wandb:
       6:
       - 1
     python_version: 3.6.15
-    start_time: 1651703409
+    start_time: 1651717521
     t:
       1:
       - 1
@@ -68,11 +68,11 @@ _wandb:
 config:
   desc: null
   value:
-  - /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial3/config.yaml
+  - /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial8/config.yaml
 env:
   desc: null
   value:
-    exp_name: deepsort-triplet_comb_1_1
+    exp_name: deepsort-quadruplet_learnedmetric
     merge_from_dict: utils.YamlParser.merge_from_dict
     merge_from_file: utils.YamlParser.merge_from_file
 merge_from_dict:
@@ -121,7 +121,7 @@ trainer:
     callbacks: null
     check_val_every_n_epoch: 1
     checkpoint_callback: null
-    default_root_dir: /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial3
+    default_root_dir: /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial8
     detect_anomaly: false
     deterministic: false
     devices: null
@@ -177,22 +177,22 @@ training:
   desc: null
   value:
     batch_size: 128
-    criterion: triplet_eucl
+    criterion: quadruplet_learnedmetric
     dataset: market1501
     kkt_weights:
     - 1.0
-    - 1.0
+    - 0.0
     lr: 0.005
     merge_from_dict: utils.YamlParser.merge_from_dict
     merge_from_file: utils.YamlParser.merge_from_file
     quadruplet:
-      margin_alpha: 0.1
-      margin_beta: 0.01
+      margin_alpha: 1.0
+      margin_beta: 0.5
       merge_from_dict: utils.YamlParser.merge_from_dict
       merge_from_file: utils.YamlParser.merge_from_file
     training_dir: /home/cougarnet.uh.edu/eeplater/Documents/Datasets/Market-1501-v15.09.15/bounding_box_train_pt_format
     triplet:
-      margin: 2.0
+      margin: 1.0
       merge_from_dict: utils.YamlParser.merge_from_dict
       merge_from_file: utils.YamlParser.merge_from_file
 validation:

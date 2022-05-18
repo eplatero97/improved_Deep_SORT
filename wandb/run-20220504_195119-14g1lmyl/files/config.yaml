@@ -48,7 +48,7 @@ _wandb:
       6:
       - 1
     python_version: 3.6.15
-    start_time: 1651703409
+    start_time: 1651711879
     t:
       1:
       - 1
@@ -68,11 +68,11 @@ _wandb:
 config:
   desc: null
   value:
-  - /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial3/config.yaml
+  - /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial6/config.yaml
 env:
   desc: null
   value:
-    exp_name: deepsort-triplet_comb_1_1
+    exp_name: deepsort-triplet_comb_.6_.4
     merge_from_dict: utils.YamlParser.merge_from_dict
     merge_from_file: utils.YamlParser.merge_from_file
 merge_from_dict:
@@ -121,7 +121,7 @@ trainer:
     callbacks: null
     check_val_every_n_epoch: 1
     checkpoint_callback: null
-    default_root_dir: /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial3
+    default_root_dir: /home/cougarnet.uh.edu/eeplater/Documents/GitHub/improved_Deep_SORT/data/models/trial6
     detect_anomaly: false
     deterministic: false
     devices: null
@@ -180,8 +180,8 @@ training:
     criterion: triplet_eucl
     dataset: market1501
     kkt_weights:
-    - 1.0
-    - 1.0
+    - 0.6
+    - 0.4
     lr: 0.005
     merge_from_dict: utils.YamlParser.merge_from_dict
     merge_from_file: utils.YamlParser.merge_from_file
