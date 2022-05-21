@@ -1,24 +1,16 @@
 #import torchvision.datasets as dset
 from pathlib import Path
 from torchvision import transforms as T 
-from torch.utils.data import DataLoader
 import PIL.ImageOps    
-from siamese_dataloader import *
-from siamese_net import *
-from tqdm import tqdm
+from pl_deep_sort import * 
 from pytorch_lightning import Trainer, seed_everything
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
-from typing import Optional
-from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 from torch import nn
-from criterions import * # imports all defined criterions
-from callbacks import * # MyPrintingCallback
 import wandb
 from loguru import logger 
-from utils import * # wrap_namespace (turns nested dictionary into namespace)
 import os
 seed_everything(42, workers=True)
 

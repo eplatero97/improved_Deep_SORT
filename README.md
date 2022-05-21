@@ -13,6 +13,11 @@ pip install -r requirements.txt
 ```
 > NOTE: we recommend creating a conda virtual environment to run this code `conda create -n deep_sort python=3.6`. 
 
+Then, run below:
+```sh
+python setup.py install_lib
+```
+
 ## Datasets
 For training and testing, we used the [Market-1501](http://zheng-lab.cecs.anu.edu.au/Project/project_reid.html) dataset which you can download by runing below:
 ```sh

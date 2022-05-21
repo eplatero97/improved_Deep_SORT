@@ -1,5 +1,5 @@
 import torch
-from siamese_net import *
+# from .siamese_net import *
 from torch import linalg as LA
 
 # metric for Triplet Accuracy
@@ -111,12 +111,12 @@ def args_per_metric(parent_parser):
         parent_parser = metric.add_metric_specific_args(parent_parser)
     return parent_parser
 
-if __name__ == "__main__":
-    learned_metric = MetricNetwork(128)
-    acc = QuadrupletAcc(learned_metric, 2.0, 2.0)
-    a = torch.randn(3,128)
-    p = torch.randn(3,128)
-    n = torch.randn(3,128)
-    n2 = torch.randn(3,128)
-    out = acc(a,p,n,n2)
-    print(out)
+# if __name__ == "__main__":
+#     learned_metric = MetricNetwork(128)
+#     acc = QuadrupletAcc(learned_metric, 2.0, 2.0)
+#     a = torch.randn(3,128)
+#     p = torch.randn(3,128)
+#     n = torch.randn(3,128)
+#     n2 = torch.randn(3,128)
+#     out = acc(a,p,n,n2)
+#     print(out)

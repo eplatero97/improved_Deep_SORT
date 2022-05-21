@@ -1,25 +1,17 @@
-import torchvision
 import torchvision.datasets as dset
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader,Dataset
-import torchvision.utils
+from torch.utils.data import DataLoader
 import numpy as np
-import random
-from PIL import Image
 import torch
-from torch.autograd import Variable
-import PIL.ImageOps    
 import torch.nn as nn
 from torch import optim
-import torch.nn.functional as F
 from pytorch_lightning.core.lightning import LightningModule
 from torch.utils.data import ConcatDataset
 from scipy.stats import multivariate_normal
 import pytorch_lightning as pl
 from typing import Optional
-from siamese_dataloader import SiameseTriplet, SiameseQuadruplet
-from reid_architectures import *
-from metrics import * # TripletAcc
+from .reid_architectures import * 
+from .metrics import * 
+from .siamese_dataloader import * # SiameseTriplet, SiameseQuadruplet
 from typing import Optional, Union
 
 """
@@ -161,14 +153,20 @@ class SiameseNetwork(ReID_Architectures):
         return output1,output2,output3
 
     def training_step(self, batch, batch_idx):
-        loss = self.abstract_forward_pass(batch, stage = "train")
+        loss, acc = self.abstract_forward_pass(batch, stage = "train")
+        self.log(f"train/{self.criterion_name}",  loss.item(), logger=True, on_epoch=True, sync_dist=True)
+        self.log(f"train/acc", acc.item(), logger=True, on_epoch=True, sync_dist=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
-        self.abstract_forward_pass(batch, stage = "validation")
+        loss, acc = self.abstract_forward_pass(batch, stage = "validation")
+        self.log(f"validation/{self.criterion_name}",  loss.item(), logger=True, on_epoch=True, sync_dist=True)
+        self.log(f"validation/acc", acc.item(), logger=True, on_epoch=True, sync_dist=True)
     
     def test_step(self, batch, batch_idx):
-        self.abstract_forward_pass(batch, stage = "test")
+        loss, acc = self.abstract_forward_pass(batch, stage = "test")
+        self.log(f"test/{self.criterion_name}",  loss.item(), logger=True, sync_dist=True)
+        self.log(f"test/acc", acc.item(), logger=True, sync_dist=True)
 
 
     def configure_optimizers(self):
@@ -196,26 +194,17 @@ class SiameseNetwork(ReID_Architectures):
         if self.criterion_name in self.triplet_criterion_names:
             anchor_out, positive_out, negative_out = embeddings # unpack embeddings 
             loss = self.criterion(anchor_out, positive_out, negative_out) # compute triplet loss
-            acc = self.acc(anchor_out.detach(), positive_out.detach(), negative_out.detach()).item() # compute triplet accuracy
+            acc = self.acc(anchor_out.detach(), positive_out.detach(), negative_out.detach()) # compute triplet accuracy
         elif self.criterion_name in self.quadruplet_criterion_names:
             anchor_out, positive_out, negative_out, negative2_out = embeddings # unpack embeddings
             ap_dist, an_dist, nn_dist = self.preprocess_quad_embeddings(anchor_out, positive_out, negative_out, negative2_out) # (each shape: torch.Size([batch_size]))
             loss: torch.float32 = self.criterion(ap_dist, an_dist, nn_dist) # compute quad loss
-            acc = self.acc(anchor_out.detach(), positive_out.detach(), negative_out.detach(), negative2_out.detach()).item() # compute quad accuracy
+            acc = self.acc(anchor_out.detach(), positive_out.detach(), negative_out.detach(), negative2_out.detach()) # compute quad accuracy
         else:
             print(f"CRITERIA IS NOT DEFINED: {self.criterion_name}")
             raise 
-        # log metrics
-        # if stage in ["train","validation", "test"]:
-        #     on_step=False
-        #     on_epoch=True
-        # else:
-        #     on_step=True
-        #     on_epoch=False
-        self.log(f"{stage}/{self.criterion_name}",  loss.item(), logger=True, on_epoch=True, sync_dist=True)
-        self.log(f"{stage}/acc", acc, logger=True, on_epoch=True, sync_dist=True)
 
-        return loss
+        return loss,acc
 
 
 
