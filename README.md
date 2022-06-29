@@ -62,7 +62,7 @@ For validation, we downloaded the training section of the [MOT17 Dataset](https:
 
 <img src="https://github.com/eplatero97/improved_Deep_SORT/blob/master/assets/mot17_preview.PNG?raw=true" alt="roi.jpg" style="zoom:33%;" />
 
-> NOTE: above image was taken from [here]([(PDF) Enhanced Multiple-Object Tracking Using Delay Processing and Binary-Channel Verification (researchgate.net)](https://www.researchgate.net/publication/337133502_Enhanced_Multiple-Object_Tracking_Using_Delay_Processing_and_Binary-Channel_Verification)).
+> NOTE: above image was taken from [here](https://www.researchgate.net/publication/337133502_Enhanced_Multiple-Object_Tracking_Using_Delay_Processing_and_Binary-Channel_Verification).
 
 **Directory Structure**
 
@@ -152,4 +152,4 @@ trainer:
 * Deep SORT publication: https://arxiv.org/pdf/1703.07402.pdf
 
 ## Acknowledgements :loudspeaker:
-We originally forked this repository from [here])(https://github.com/abhyantrika/nanonets_object_tracking). As such, a large part of this code such as `siamese_dataloader.py` originates from there. 
+We originally forked this repository from [here](https://github.com/abhyantrika/nanonets_object_tracking). As such, a large part of this code such as `siamese_dataloader.py` originates from there. 
