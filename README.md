@@ -1,12 +1,37 @@
-## Introduction
-This repository contains code to train Deep SORT's re-identification model with different optimization schemes. More spcifically, the optimization functions we use are:
+## Introduction :wave:
+This repository contains code to train Deep SORT's re-identification model with different optimization schemes:
 * Triplet cosine using cosine and euclidean distance
 * Weighted combination of triplet with cosine and euclidean
 * Quadruplet loss
 
-The design of this project is modular to allow the user to customize the configuration file to try different options. 
+The design of this project is modular to allow the user to customize the configuration file to experiment with different training options. 
 
-## Dependencies
+## Findings :mag:
+
+A summary of our findings is shown in below table:
+
+| Loss Config                  | Avg Train Acc | Avg Val Acc | Avg Test Acc |
+| ---------------------------- | ------------- | ----------- | ------------ |
+| triplet_cos                  | 99.98%        | 99.98%      | 99.95%       |
+| triplet_eucl                 | 99.75%        | 99.74%      | 98.07%       |
+| triplet_comb_1_1             | 99.88%        | 99.84%      | 99.86%       |
+| triplet_comb\_.8\_.2         | 99.84%        | 99.86%      | 99.86%       |
+| triplet_comb\_.6\_.4         | 99.92%        | 99.91%      | 99.89%       |
+| triplet_comb\_.4\_.6         | 99.88%        | 99.86%      | 99.84%       |
+| triplet_comb\_.2\_.8         | 99.85%        | 99.86%      | 99.81%       |
+| **quadruplet_learnedmetric** | **67.62%**    | **66.92%**  | **100%**     |
+
+A through review of all our findings is found on `Improving_Deep_SORT_Tracking_Embedding_report.pdf`.
+
+## Metrics :triangular_ruler:
+
+This project analyzes the performance of the re-identification model to correctly classify whether an image is a positive or negative image in terms of our anchor sample. To quantify performance of models trained under triplet loss, we compute the nearest embedding neighbor of our anchor and positive image. Then, we classify whether the nearest-neighbor of the anchor embedding is its positive sample and vice-versa. We do the same for quadruplet loss. 
+
+```python
+tripletAcc = (NN(a, [p, n]) == p) + (NN(p, [a, n]) == a) / 2
+```
+
+## Dependencies :clipboard:
 The code has been tested only python 3.6. To install the required libraries, run below command:
 ```sh
 pip install -r requirements.txt
@@ -18,13 +43,26 @@ Then, run below:
 python setup.py install_lib
 ```
 
-## Datasets
+## Datasets :file_folder:
+**Market-1501**
+
 For training and testing, we used the [Market-1501](http://zheng-lab.cecs.anu.edu.au/Project/project_reid.html) dataset which you can download by runing below:
+
 ```sh
 wget -c http://188.138.127.15:81/Datasets/Market-1501-v15.09.15.zip
 ```
 
-For validation, we downloaded the training segment of the [MOT17 Dataset](https://motchallenge.net/data/MOT17/).
+We use this dataset because it contains photos of human subjects from different angles and under different environmental conditions, attributes that are necessary to create a robust re-identification model.
+
+<img src="https://production-media.paperswithcode.com/datasets/Market-1501-0000000097-a728ab2d_gyNBlrI.jpg" alt="img" style="zoom: 50%;" />
+
+**MOT-17**
+
+For validation, we downloaded the training section of the [MOT17 Dataset](https://motchallenge.net/data/MOT17/). We use this dataset because it captures crowded videos in unconstrained environments, which makes it a challenging task to identify subjects based solely in their appearance. 
+
+<img src="https://www.researchgate.net/publication/337133502/figure/fig4/AS:823162564534273@1573268657856/Visualization-of-selected-sequences-from-the-MOT17-benchmark-dataset.ppm" alt="Visualization of selected sequences from the MOT17 benchmark dataset ..." style="zoom: 67%;" />
+
+**Directory Structure**
 
 Once you have downloaded all the datasets, you should have a directory path like below:
 ```sh
@@ -41,7 +79,7 @@ Datasets
 		├── . . .
 ```
 
-## Pre-Processing
+## Pre-Processing :lips:
 Since this work focuses on training the re-identification embedding of Deep SORT (and ignores the tracking framework), we format all our datasets into below format to easily mine triplet and quadruplet samples:
 ```sh
 dataset
@@ -66,7 +104,7 @@ python cropper.py --mot-path /path/to/mot/training/dataset/partition/
 > NOTE: for more help, you can always run something like `python cropper.py --help`. Further, for the output of `crop_dimensions.py`, you will have to manualy delete a `Thumbs` directory that includes a *.db file.
 
 
-## Training Re-ID Embedding
+## Training Re-ID Embedding :muscle:
 To run training with the default configurations just run below:
 ```sh
 python siamese_net.py --training.training_dir /market1501/training/path --validation.validation_dir /market1501/testing/path --testing.mot_testing_dir /mot17/train
@@ -108,8 +146,8 @@ trainer:
   profiler: simple
 ```
 
-## References
+## References :newspaper:
 * Deep SORT publication: https://arxiv.org/pdf/1703.07402.pdf
 
-## Acknowledgements
+## Acknowledgements :loudspeaker:
 We originally forked this repository from [here])(https://github.com/abhyantrika/nanonets_object_tracking). As such, a large part of this code such as `siamese_dataloader.py` originates from there. 
