@@ -60,7 +60,9 @@ We use this dataset because it contains photos of human subjects from different 
 
 For validation, we downloaded the training section of the [MOT17 Dataset](https://motchallenge.net/data/MOT17/). We use this dataset because it captures crowded videos in unconstrained environments, which makes it a challenging task to identify subjects based solely in their appearance. 
 
-<img src="https://www.researchgate.net/publication/337133502/figure/fig4/AS:823162564534273@1573268657856/Visualization-of-selected-sequences-from-the-MOT17-benchmark-dataset.ppm" alt="Visualization of selected sequences from the MOT17 benchmark dataset ..." style="zoom: 67%;" />
+<img src="https://github.com/eplatero97/improved_Deep_SORT/blob/master/assets/mot17_preview.PNG?raw=true" alt="roi.jpg" style="zoom:33%;" />
+
+> NOTE: above image was taken from [here]([(PDF) Enhanced Multiple-Object Tracking Using Delay Processing and Binary-Channel Verification (researchgate.net)](https://www.researchgate.net/publication/337133502_Enhanced_Multiple-Object_Tracking_Using_Delay_Processing_and_Binary-Channel_Verification)).
 
 **Directory Structure**
 
