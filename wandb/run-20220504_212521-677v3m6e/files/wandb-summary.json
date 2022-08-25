@@ -1,1 +1,0 @@
-{"train/QuadrupletLoss_step": 1.5, "train/acc_step": 1.0, "epoch": 50, "trainer/global_step": 5100, "_timestamp": 1651721253, "_runtime": 3732, "_step": 151, "validation/QuadrupletLoss": 1.5, "validation/acc": 1.0, "train/QuadrupletLoss_epoch": 1.5, "train/acc_epoch": 1.0, "test/QuadrupletLoss": 1.5, "test/acc": 1.0, "_wandb": {"runtime": 3733}}

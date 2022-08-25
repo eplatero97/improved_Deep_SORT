@@ -1,1 +1,0 @@
-{"validation/QuadrupletLoss": 1.5004253387451172, "validation/acc": 0.1666664481163025, "epoch": 2, "trainer/global_step": 204, "_timestamp": 1651678900, "_runtime": 513, "_step": 4, "train/QuadrupletLoss": 1.503568172454834, "train/acc": 0.16666674613952637, "test/QuadrupletLoss": 1.5004045963287354, "test/acc": 0.16666820645332336, "_wandb": {"runtime": 515}}
